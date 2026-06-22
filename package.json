@@ -1,14 +1,44 @@
 {
   "name": "ai-footprint",
-  "displayName": "ai-footprint",
-  "description": "Helps developers stay aware of AI over-reliance by tracking coding behavior and nudging when needed",
-  "version": "0.0.1",
+  "displayName": "AI Footprint",
+  "description": "Stay honest about how much you're relying on AI to write your code. Local-only paste and cadence tracking with gentle nudges.",
+  "version": "0.1.0",
+  "publisher": "biyelaayanda3",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "author": {
+    "name": "Ayanda Biyela",
+    "url": "https://github.com/biyelaayanda3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/biyelaayanda3/ai-footprint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/biyelaayanda3/ai-footprint/issues"
+  },
+  "homepage": "https://github.com/biyelaayanda3/ai-footprint#readme",
   "engines": {
     "vscode": "^1.125.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
+  "keywords": [
+    "ai",
+    "copilot",
+    "chatgpt",
+    "claude",
+    "productivity",
+    "self-reflection",
+    "paste-detection",
+    "code-review"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
   "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
   "contributes": {
@@ -70,7 +100,10 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "vsix": "vsce package",
+    "publish:marketplace": "vsce publish",
+    "publish:openvsx": "ovsx publish"
   },
   "devDependencies": {
     "@types/vscode": "^1.125.0",
@@ -82,6 +115,8 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^5.9.3",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.2.1",
+    "ovsx": "^0.10.0"
   }
 }

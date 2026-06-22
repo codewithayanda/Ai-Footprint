@@ -46,8 +46,21 @@ Every threshold is adjustable in VS Code settings. You decide what counts as a l
 - VS Code 1.125 or higher
 - Node.js 18 or higher (for development)
 
+**Install from a release (recommended)**
+
+Grab the latest `.vsix` file from the [Releases page](https://github.com/biyelaayanda3/ai-footprint/releases) and install it with one command:
+
+```bash
+code --install-extension ai-footprint-0.1.0.vsix
+```
+
+Or install it from inside VS Code:
+`Extensions panel → ⋯ menu → Install from VSIX…` and pick the downloaded file.
+
+To update later, download the new `.vsix` and run the same command — VS Code will replace the previous version.
+
 **Install from Marketplace**
-Search for `AI Footprint` in the VS Code Extensions panel and click Install.
+Coming soon. For now, use the release download above.
 
 **Install from source**
 ```bash
