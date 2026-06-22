@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
 import { CadenceTracker } from './detectors/cadenceTracker';
+import { NudgeEngine } from './nudge/nudgeEngine';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('AI Footprint is now active!');
 
 	const cadenceTracker = new CadenceTracker(context);
-	const PASTE_THRESHOLD = 5;
+	const nudgeEngine = new NudgeEngine(context);
+
+	// Load saved nudge history on startup
+	nudgeEngine.loadHistory();
 
 	const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
 		for (const change of event.contentChanges) {
@@ -13,28 +17,11 @@ export function activate(context: vscode.ExtensionContext) {
 			const linesAdded = textAdded.split('\n').length - 1;
 			const charsAdded = textAdded.length;
 
-			// Always track the change
+			// Track cadence
 			cadenceTracker.track(linesAdded, charsAdded);
 
-			// PASTE DETECTION
-			if (linesAdded >= PASTE_THRESHOLD) {
-				console.log('🚨 PASTE DETECTED —', linesAdded, 'lines');
-				vscode.window.showWarningMessage(
-					`AI Footprint: Large paste detected (${linesAdded} lines). Make sure you understand this code!`
-				);
-			}
-
-			// CADENCE DETECTION
-			if (cadenceTracker.isSuspiciouslyFast()) {
-				console.log('⚡ SUSPICIOUSLY FAST TYPING DETECTED');
-				vscode.window.showWarningMessage(
-					'AI Footprint: Your typing speed seems unusual. Are you reviewing what you\'re adding?'
-				);
-			}
-
-			// Log current average for debugging
-			console.log('Current avg interval:', cadenceTracker.getAverageInterval(), 'ms');
-			console.log('Baseline:', cadenceTracker.getBaseline());
+			// Let the nudge engine decide what to do
+			nudgeEngine.evaluate(linesAdded, cadenceTracker.isSuspiciouslyFast());
 		}
 	});
 
