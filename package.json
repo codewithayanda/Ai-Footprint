@@ -14,8 +14,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "ai-footprint.helloWorld",
-        "title": "Hello World"
+         "command": "ai-footprint.showDashboard",
+        "title": "AI Footprint: Show Dashboard"
       }
     ]
   },

@@ -14,7 +14,7 @@ export class NudgeEngine {
 	private context: vscode.ExtensionContext;
 
 	// Cooldown between nudges in milliseconds (5 minutes)
-	private readonly COOLDOWN_MS = 5 * 60 * 1000;
+	private readonly COOLDOWN_MS = 1 * 60 * 1000;
 
 	// How many lines before we escalate the nudge level
 	private readonly SUBTLE_THRESHOLD = 5;
