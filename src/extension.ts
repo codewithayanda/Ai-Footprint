@@ -1,39 +1,43 @@
 import * as vscode from 'vscode';
+import { CadenceTracker } from './detectors/cadenceTracker';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('AI Footprint is now active!');
 
-	// This fires every time text changes in the editor
+	const cadenceTracker = new CadenceTracker(context);
+	const PASTE_THRESHOLD = 5;
+
 	const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-
-		// Loop through every change in this event
-		// (there can be multiple, e.g. multi-cursor editing)
 		for (const change of event.contentChanges) {
-
 			const textAdded = change.text;
 			const linesAdded = textAdded.split('\n').length - 1;
-			const timestamp = Date.now();
+			const charsAdded = textAdded.length;
 
-			// Log every change so we can see what's happening
-			console.log('--- Change Detected ---');
-			console.log('Lines added:', linesAdded);
-			console.log('Characters added:', textAdded.length);
-			console.log('Timestamp:', timestamp);
+			// Always track the change
+			cadenceTracker.track(linesAdded, charsAdded);
 
 			// PASTE DETECTION
-			// A paste = lots of lines appearing in a single change event
-			const PASTE_THRESHOLD = 5; // we'll make this configurable later
-
 			if (linesAdded >= PASTE_THRESHOLD) {
-				console.log('🚨 PASTE DETECTED');
+				console.log('🚨 PASTE DETECTED —', linesAdded, 'lines');
 				vscode.window.showWarningMessage(
 					`AI Footprint: Large paste detected (${linesAdded} lines). Make sure you understand this code!`
 				);
 			}
+
+			// CADENCE DETECTION
+			if (cadenceTracker.isSuspiciouslyFast()) {
+				console.log('⚡ SUSPICIOUSLY FAST TYPING DETECTED');
+				vscode.window.showWarningMessage(
+					'AI Footprint: Your typing speed seems unusual. Are you reviewing what you\'re adding?'
+				);
+			}
+
+			// Log current average for debugging
+			console.log('Current avg interval:', cadenceTracker.getAverageInterval(), 'ms');
+			console.log('Baseline:', cadenceTracker.getBaseline());
 		}
 	});
 
-	// Always push listeners to subscriptions for cleanup
 	context.subscriptions.push(textChangeListener);
 }
 
