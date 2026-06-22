@@ -13,12 +13,36 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      {
-         "command": "ai-footprint.showDashboard",
-        "title": "AI Footprint: Show Dashboard"
-      }
-    ]
-  },
+        {
+            "command": "ai-footprint.showDashboard",
+            "title": "AI Footprint: Show Dashboard"
+        }
+    ],
+    "configuration": {
+        "title": "AI Footprint",
+        "properties": {
+            "aiFootprint.pasteThreshold": {
+                "type": "number",
+                "default": 5,
+                "minimum": 3,
+                "maximum": 50,
+                "description": "Number of lines pasted at once to trigger detection"
+            },
+            "aiFootprint.cooldownMinutes": {
+                "type": "number",
+                "default": 5,
+                "minimum": 1,
+                "maximum": 60,
+                "description": "Minutes between nudges to avoid interrupting your flow"
+            },
+            "aiFootprint.enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable or disable AI Footprint monitoring"
+            }
+        }
+    }
+},
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",

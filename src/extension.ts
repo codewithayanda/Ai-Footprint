@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { CadenceTracker } from './detectors/cadenceTracker';
 import { NudgeEngine } from './nudge/nudgeEngine';
 import { DashboardPanel } from './ui/dashboardPanel';
+import { getSettings, onSettingsChanged } from './config/settings';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('AI Footprint is now active!');
@@ -10,11 +11,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const nudgeEngine = new NudgeEngine(context);
 	nudgeEngine.loadHistory();
 
-	// Track today's stats
 	let todayPastes = 0;
 	let aiScore = 100;
 
-	// Register command to open dashboard
 	const dashboardCommand = vscode.commands.registerCommand(
 		'ai-footprint.showDashboard',
 		() => {
@@ -29,6 +28,10 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+		// Respect the enabled setting
+		const { enabled, pasteThreshold } = getSettings();
+		if (!enabled) return;
+
 		for (const change of event.contentChanges) {
 			const textAdded = change.text;
 			const linesAdded = textAdded.split('\n').length - 1;
@@ -37,12 +40,11 @@ export function activate(context: vscode.ExtensionContext) {
 			cadenceTracker.track(linesAdded, charsAdded);
 			nudgeEngine.evaluate(linesAdded, cadenceTracker.isSuspiciouslyFast());
 
-			// Update stats when paste detected
-			if (linesAdded >= 5) {
+			// Use dynamic threshold from settings
+			if (linesAdded >= pasteThreshold) {
 				todayPastes++;
 				aiScore = Math.max(0, aiScore - Math.floor(linesAdded / 5));
 
-				// Auto refresh dashboard if it's open
 				if (DashboardPanel.currentPanel) {
 					DashboardPanel.currentPanel.updateStats({
 						todayPastes,
@@ -55,7 +57,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(dashboardCommand, textChangeListener);
+	// React to settings changes live
+	const settingsListener = onSettingsChanged(() => {
+		const { enabled } = getSettings();
+		vscode.window.setStatusBarMessage(
+			enabled
+				? '$(eye) AI Footprint: Monitoring enabled'
+				: '$(eye-closed) AI Footprint: Monitoring disabled',
+			4000
+		);
+	});
+
+	context.subscriptions.push(
+		dashboardCommand,
+		textChangeListener,
+		settingsListener
+	);
 }
 
 export function deactivate() {}

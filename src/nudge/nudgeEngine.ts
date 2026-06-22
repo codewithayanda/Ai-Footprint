@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getSettings } from '../config/settings';
 
 type NudgeLevel = 'subtle' | 'warning' | 'strong';
 
@@ -14,7 +15,9 @@ export class NudgeEngine {
 	private context: vscode.ExtensionContext;
 
 	// Cooldown between nudges in milliseconds (5 minutes)
-	private readonly COOLDOWN_MS = 5 * 60 * 1000;
+	private get COOLDOWN_MS(): number {
+		return getSettings().cooldownMinutes * 60 * 1000;
+	}
 
 	// How many lines before we escalate the nudge level
 	private readonly SUBTLE_THRESHOLD = 5;
