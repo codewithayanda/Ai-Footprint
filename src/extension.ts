@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	statusBar.command = 'ai-footprint.showDashboard';
-	statusBar.tooltip = 'AI Footprint — click to open dashboard';
+	statusBar.tooltip = 'AI Footprint · click to open dashboard';
 	updateStatusBar(statusBar, stats, getSettings().showStatusBar);
 
 	context.subscriptions.push(
@@ -80,7 +80,7 @@ function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): voi
 					});
 				});
 		} else if (linesAdded > 0) {
-			// Human-paced typing — feed the "own code" cache and track total lines.
+			// Human-paced typing: feed the "own code" cache and track total lines.
 			deps.paste.noteLocalEdit(text);
 			deps.stats.recordTyping(linesAdded);
 			// Still let the nudge engine consider fast-typing alerts.
@@ -156,7 +156,7 @@ function maybeShowOnboarding(context: vscode.ExtensionContext): void {
 	if (context.globalState.get<boolean>(STORAGE_KEYS.onboarded)) {return;}
 	void vscode.window
 		.showInformationMessage(
-			"AI Footprint is now watching how your code arrives — not what it says. Everything stays on this machine. You can disable it anytime in Settings.",
+			"AI Footprint is now watching how your code arrives, not what it says. Everything stays on this machine. You can disable it anytime in Settings.",
 			"Got it",
 			"Open Settings",
 		)

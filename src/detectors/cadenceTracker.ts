@@ -3,7 +3,7 @@ import { CADENCE, STORAGE_KEYS } from '../constants';
 
 interface LanguageBaseline {
 	medianMs: number;
-	madMs: number;      // median absolute deviation — robust spread
+	madMs: number;      // median absolute deviation: a robust measure of spread
 	samples: number;
 	updatedAt: number;
 }
@@ -18,7 +18,7 @@ interface PersistedBaselines {
  * stdev so a few long pauses or instant accepts don't poison the baseline.
  *
  * Intentionally ignores edits whose `charsAdded` exceeds the configured
- * keystroke cutoff — those are pastes, snippet expansions, or autocomplete
+ * keystroke cutoff. Those are pastes, snippet expansions, or autocomplete
  * acceptances and must not enter the baseline.
  */
 export class CadenceTracker {
@@ -40,7 +40,7 @@ export class CadenceTracker {
 		const isBackspace = charsAdded === 0 && charsRemoved > 0 && charsRemoved <= CADENCE.maxCharsPerKeystroke;
 
 		if (!isLikelyKeystroke && !isBackspace) {
-			// Big insertion (paste / autocomplete) — reset the last-keystroke timer
+			// Big insertion (paste / autocomplete): reset the last-keystroke timer
 			// so the next genuine keystroke doesn't compute a bogus interval.
 			this.lastKeystrokeByLang.delete(languageId);
 			return;

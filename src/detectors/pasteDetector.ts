@@ -24,7 +24,7 @@ export class PasteDetector {
 
 	constructor(private readonly clipboardAware: boolean) {}
 
-	/** Call when the user types/edits something small — feeds the "own code" cache. */
+	/** Call when the user types/edits something small, to feed the "own code" cache. */
 	noteLocalEdit(text: string): void {
 		if (text.length < 16) {return;}
 		this.recentLocalTexts.push(text);

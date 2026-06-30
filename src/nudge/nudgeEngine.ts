@@ -23,10 +23,10 @@ export interface NudgeContext {
  * Decides whether to nudge, at what severity, and shows the appropriate UI.
  *
  * Two ideas worth calling out:
- *  1. Snooze is represented as an explicit `snoozeUntil` timestamp — never as
+ *  1. Snooze is represented as an explicit `snoozeUntil` timestamp, never as
  *     "fake the lastNudgeTime in the future". That bug bit the previous version.
- *  2. We never nudge while a debug session is active (configurable) — nudging
- *     during a bug hunt is exactly what makes people uninstall the extension.
+ *  2. We never nudge while a debug session is active (configurable), because
+ *     nudging during a bug hunt is exactly what makes people uninstall the extension.
  */
 export class NudgeEngine implements vscode.Disposable {
 	private history: NudgeRecord[] = [];
@@ -119,7 +119,7 @@ export class NudgeEngine implements vscode.Disposable {
 			case 'strong':
 				void vscode.window
 					.showErrorMessage(
-						`AI Footprint: ${ctx.linesAdded} lines added at once${tail} — review this carefully before moving on.`,
+						`AI Footprint: ${ctx.linesAdded} lines added at once${tail}. Review this carefully before moving on.`,
 						'I will review it',
 						`Snooze ${NUDGE.snoozeMinutes}m`,
 					)

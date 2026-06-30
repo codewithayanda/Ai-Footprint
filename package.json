@@ -2,22 +2,22 @@
   "name": "ai-footprint",
   "displayName": "AI Footprint",
   "description": "Stay honest about how much you're relying on AI to write your code. Local-only paste and cadence tracking with gentle nudges.",
-  "version": "0.1.0",
-  "publisher": "biyelaayanda3",
+  "version": "0.2.0",
+  "publisher": "codewithayanda",
   "license": "MIT",
   "icon": "media/icon.png",
   "author": {
     "name": "Ayanda Biyela",
-    "url": "https://github.com/biyelaayanda3"
+    "url": "https://github.com/codewithayanda"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/biyelaayanda3/ai-footprint.git"
+    "url": "https://github.com/codewithayanda/ai-footprint.git"
   },
   "bugs": {
-    "url": "https://github.com/biyelaayanda3/ai-footprint/issues"
+    "url": "https://github.com/codewithayanda/ai-footprint/issues"
   },
-  "homepage": "https://github.com/biyelaayanda3/ai-footprint#readme",
+  "homepage": "https://github.com/codewithayanda/ai-footprint#readme",
   "engines": {
     "vscode": "^1.125.0"
   },

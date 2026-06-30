@@ -4,15 +4,17 @@ A VS Code extension that helps you stay honest about how much you're relying on 
 
 It's not anti-AI. It's pro-understanding.
 
+![AI Footprint dashboard: today's score, 14-day chart, and per-day paste detail](media/dashboard.png)
+
 ---
 
 ## Why I Built This
 
-AI coding tools are genuinely useful. But there's a difference between using AI as a tool and using AI as a crutch — and that line is easier to cross than most developers admit.
+AI coding tools are genuinely useful. But there's a difference between using AI as a tool and using AI as a crutch, and that line is easier to cross than most developers admit.
 
 I noticed a pattern: paste some code from Claude or ChatGPT, it works, move on. Repeat. Eventually you're sitting in a codebase you don't fully understand, and that's a problem that compounds quietly over time.
 
-AI Footprint watches how your code arrives in the editor. It tracks paste behavior, typing cadence, and how much time you spend reviewing what you add. When it notices something worth flagging, it says something — once, without being annoying about it.
+AI Footprint watches how your code arrives in the editor. It tracks paste behavior, typing cadence, and how much time you spend reviewing what you add. When it notices something worth flagging, it says something. Once, without being annoying about it.
 
 Think of it as a senior developer sitting next to you, not to judge, but to ask: *do you actually understand what you just added?*
 
@@ -21,16 +23,16 @@ Think of it as a senior developer sitting next to you, not to judge, but to ask:
 ## What It Does
 
 **Paste Detection**
-When a large block of code appears at once, the extension notices. It doesn't assume the worst — maybe you're copying your own code from another file. But if it happens repeatedly, it keeps track.
+When a large block of code appears at once, the extension notices. It doesn't assume the worst. Maybe you're copying your own code from another file. But if it happens repeatedly, it keeps track.
 
 **Typing Cadence Tracking**
 The extension learns your personal typing rhythm over time. When code appears significantly faster than your normal pace, it flags it. Humans type with pauses, thinking breaks, and backspaces. AI output doesn't.
 
 **Smart Nudges**
-Three levels of nudge depending on severity — a subtle status bar message, a warning popup, or a stronger alert for very large insertions. There's a cooldown between nudges so it never feels like nagging. You can snooze for 30 minutes if you're in the middle of something, and nudges automatically go quiet during debug sessions.
+Three levels of nudge depending on severity: a subtle status bar message, a warning popup, or a stronger alert for very large insertions. There's a cooldown between nudges so it never feels like nagging. You can snooze for 30 minutes if you're in the middle of something, and nudges automatically go quiet during debug sessions.
 
 **Live Dashboard + Status Bar**
-A status bar item shows your live AI score — click it to open the dashboard. The dashboard updates in real time and shows your score for the day, pastes, nudges, clean-day streak, an honest *AI Reliance %* (lines that arrived via paste ÷ all lines added today), and a 7-day sparkline. The score isn't meant to shame you — it's meant to make the invisible visible.
+A status bar item shows your live AI score (click it to open the dashboard). The dashboard updates in real time and shows your score for the day, pastes, nudges, clean-day streak, an honest *AI Reliance %* (lines that arrived via paste ÷ all lines added today), and a 7-day sparkline. The score isn't meant to shame you. It's meant to make the invisible visible.
 
 **Your Data, Your Machine**
 Everything is stored locally in VS Code's `globalState`. You can export your history to JSON at any time, or wipe it completely with a single command.
@@ -48,28 +50,49 @@ Every threshold is adjustable in VS Code settings. You decide what counts as a l
 
 **Install from a release (recommended)**
 
-Grab the latest `.vsix` file from the [Releases page](https://github.com/biyelaayanda3/ai-footprint/releases) and install it with one command:
+Grab the latest `.vsix` file from the [Releases page](https://github.com/codewithayanda/ai-footprint/releases) and install it with one command:
 
 ```bash
-code --install-extension ai-footprint-0.1.0.vsix
+code --install-extension ai-footprint-0.2.0.vsix
 ```
 
 Or install it from inside VS Code:
 `Extensions panel → ⋯ menu → Install from VSIX…` and pick the downloaded file.
 
-To update later, download the new `.vsix` and run the same command — VS Code will replace the previous version.
+To update later, download the new `.vsix` and run the same command, and VS Code will replace the previous version.
 
 **Install from Marketplace**
 Coming soon. For now, use the release download above.
 
-**Install from source**
+**Build a `.vsix` yourself**
+
+If you want to package and install a build from your own clone (e.g. to test before
+publishing):
+
 ```bash
-git clone https://github.com/biyelaayanda3/ai-footprint.git
+git clone https://github.com/codewithayanda/ai-footprint.git
+cd ai-footprint
+npm install
+npm run vsix
+code --install-extension ai-footprint-0.2.0.vsix
+```
+
+`npm run vsix` triggers the `vscode:prepublish` hook, which runs type-checks, linting,
+and a production esbuild before packaging, so you do **not** need to run
+`npm run compile` first. (`compile` produces a dev build intended for the
+`F5` workflow below; `vsix` produces an optimized build for distribution.)
+
+**Run in development mode**
+
+```bash
+git clone https://github.com/codewithayanda/ai-footprint.git
 cd ai-footprint
 npm install
 npm run compile
 ```
-Then press `F5` in VS Code to launch the extension in development mode.
+Then press `F5` in VS Code to launch the extension in a dedicated Extension Host window.
+Edits to source rebuild automatically if you have the `watch` task running
+(`Ctrl + Shift + B` → choose `watch`).
 
 ---
 
@@ -104,7 +127,7 @@ File → Preferences → Settings → search "AI Footprint"
 
 ## How the AI Score Works
 
-Your score starts at 100 each day and decreases when large pastes are detected. The more lines pasted at once, the bigger the deduction — but a single paste can never cost you more than 25 points, so one outlier won't tank your whole day. The score resets every day — yesterday doesn't count against you, but a clean day (score stayed at 80 or higher) extends your streak.
+Your score starts at 100 each day and decreases when large pastes are detected. The more lines pasted at once, the bigger the deduction, but a single paste can never cost you more than 25 points, so one outlier won't tank your whole day. The score resets every day. Yesterday doesn't count against you, but a clean day (score stayed at 80 or higher) extends your streak.
 
 | Score | Status |
 |---|---|
@@ -112,14 +135,14 @@ Your score starts at 100 each day and decreases when large pastes are detected. 
 | 50–79 | Some AI reliance detected. Keep an eye on it. |
 | 0–49 | Heavy AI usage today. Worth going back and reviewing. |
 
-The score isn't a judgment. It's just information — the kind that's easy to ignore without something making it visible.
+The score isn't a judgment. It's just information, the kind that's easy to ignore without something making it visible.
 
 ---
 
 ## What This Doesn't Do
 
 - It doesn't block AI tools or prevent you from pasting code
-- It doesn't send any data anywhere — everything stays local on your machine
+- It doesn't send any data anywhere; everything stays local on your machine
 - It doesn't know *where* your code came from, only *how* it arrived
 - It won't fire every five minutes and kill your focus
 
@@ -148,15 +171,15 @@ src/
 
 ## Contributing
 
-This is an open project and contributions are welcome. If you have an idea for improving the detection logic, the dashboard, or the nudge system — open an issue and let's talk about it first before jumping into code.
+This is an open project and contributions are welcome. If you have an idea for improving the detection logic, the dashboard, or the nudge system, open an issue and let's talk about it first before jumping into code.
 
 ```bash
-git clone https://github.com/biyelaayanda3/ai-footprint.git
+git clone https://github.com/codewithayanda/ai-footprint.git
 cd ai-footprint
 npm install
 ```
 
-Please keep PRs focused — one thing per pull request makes review much easier.
+Please keep PRs focused: one thing per pull request makes review much easier.
 
 ---
 
@@ -164,22 +187,22 @@ Please keep PRs focused — one thing per pull request makes review much easier.
 
 These are things I want to build next, in rough priority order:
 
-- [ ] Review score — track whether the developer explored pasted code before moving on
-- [ ] Weekly summary — a breakdown of your AI usage over the past 7 days
-- [ ] Per-language stats — see which file types you rely on AI for most
-- [x] Clean-day streak — consecutive days where your score stayed above the clean threshold
-- [x] Export report — JSON export of your history for self-reflection or team use
+- [ ] Review score: track whether the developer explored pasted code before moving on
+- [ ] Weekly summary: a breakdown of your AI usage over the past 7 days
+- [ ] Per-language stats: see which file types you rely on AI for most
+- [x] Clean-day streak: consecutive days where your score stayed above the clean threshold
+- [x] Export report: JSON export of your history for self-reflection or team use
 
 ---
 
 ## Author
 
-Built by [@biyelaayanda3](https://github.com/biyelaayanda3)
+Built by [@codewithayanda](https://github.com/codewithayanda)
 
-A junior developer with 4 years of experience who got tired of not knowing what was in his own codebase — and decided to build something about it.
+A junior developer with 4 years of experience who got tired of not knowing what was in his own codebase, and decided to build something about it.
 
 ---
 
 ## License
 
-MIT — do whatever you want with it, just don't remove the attribution.
+MIT. Do whatever you want with it, just don't remove the attribution.

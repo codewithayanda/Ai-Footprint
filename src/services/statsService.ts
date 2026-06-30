@@ -8,6 +8,8 @@ export interface DayRecord {
 	nudges: number;
 	pastedLines: number;     // total lines that arrived via paste-class events
 	totalLinesAdded: number; // every line added today (typed + pasted)
+	biggestPasteLines: number; // max lines in a single paste today
+	hourlyPastes: number[];  // length 24; hourlyPastes[h] = pastes during local hour h
 }
 
 export interface StreakRecord {
@@ -16,11 +18,28 @@ export interface StreakRecord {
 	lastEvaluated: string; // ISO date we last rolled the streak forward
 }
 
+/** Aggregate over a window of past days. Null when no day in the window had activity. */
+export interface DayAverage {
+	score: number;
+	pastes: number;
+	reliance: number;
+}
+
+export interface SnapshotDeltas {
+	scoreVsYesterday: number | null;
+	pastesVsYesterday: number | null;
+	scoreVs7dAvg: number | null;
+	pastesVs7dAvg: number | null;
+}
+
 export interface SnapshotEvent {
 	today: DayRecord;
 	yesterday?: DayRecord;
 	streak: StreakRecord;
 	last7: DayRecord[];
+	reliance: number;        // today's reliance %, derived from today's record
+	avg7: DayAverage | null; // average over the 6 days BEFORE today, active days only
+	deltas: SnapshotDeltas;
 }
 
 /**
@@ -38,7 +57,16 @@ export class StatsService implements vscode.Disposable {
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		const saved = context.globalState.get<DayRecord[]>(STORAGE_KEYS.dailyStats) ?? [];
-		for (const d of saved) {this.days.set(d.date, d);}
+		for (const d of saved) {
+			// Backfill fields added after v0.1.0 so older records load cleanly.
+			if (!Array.isArray(d.hourlyPastes) || d.hourlyPastes.length !== 24) {
+				d.hourlyPastes = new Array(24).fill(0);
+			}
+			if (typeof d.biggestPasteLines !== 'number') {
+				d.biggestPasteLines = 0;
+			}
+			this.days.set(d.date, d);
+		}
 		this.streak = context.globalState.get<StreakRecord>(STORAGE_KEYS.streak)
 			?? { current: 0, best: 0, lastEvaluated: '' };
 
@@ -65,6 +93,8 @@ export class StatsService implements vscode.Disposable {
 		today.pastedLines += lines;
 		today.totalLinesAdded += lines;
 		today.score = Math.max(0, today.score - deduction);
+		today.biggestPasteLines = Math.max(today.biggestPasteLines, lines);
+		today.hourlyPastes[new Date().getHours()] += 1;
 		this.persistAndEmit();
 	}
 
@@ -98,12 +128,38 @@ export class StatsService implements vscode.Disposable {
 	snapshot(): SnapshotEvent {
 		const today = this.ensureTodayRecord();
 		const yesterdayKey = isoDate(daysAgo(1));
+		const yesterday = this.days.get(yesterdayKey);
 		const last7 = this.lastNDays(7);
+
+		const reliance = computeReliance(today);
+
+		// Average over the 6 days BEFORE today, counting only days with real activity.
+		// Including today would make today partially define its own baseline; including
+		// zero-activity days would inflate the average upward and make today look worse.
+		const priorSix = last7.slice(0, 6).filter(d => d.totalLinesAdded > 0);
+		const avg7: DayAverage | null = priorSix.length > 0
+			? {
+				score: Math.round(priorSix.reduce((s, d) => s + d.score, 0) / priorSix.length),
+				pastes: Math.round(priorSix.reduce((s, d) => s + d.pastes, 0) / priorSix.length),
+				reliance: Math.round(priorSix.reduce((s, d) => s + computeReliance(d), 0) / priorSix.length),
+			}
+			: null;
+
+		const deltas: SnapshotDeltas = {
+			scoreVsYesterday: yesterday ? today.score - yesterday.score : null,
+			pastesVsYesterday: yesterday ? today.pastes - yesterday.pastes : null,
+			scoreVs7dAvg: avg7 ? today.score - avg7.score : null,
+			pastesVs7dAvg: avg7 ? today.pastes - avg7.pastes : null,
+		};
+
 		return {
 			today,
-			yesterday: this.days.get(yesterdayKey),
+			yesterday,
 			streak: { ...this.streak },
 			last7,
+			reliance,
+			avg7,
+			deltas,
 		};
 	}
 
@@ -211,5 +267,14 @@ export function emptyDay(date: string): DayRecord {
 		nudges: 0,
 		pastedLines: 0,
 		totalLinesAdded: 0,
+		biggestPasteLines: 0,
+		hourlyPastes: new Array(24).fill(0),
 	};
+}
+
+/** Pure: fraction of lines added that day which arrived via paste. */
+export function computeReliance(d: DayRecord): number {
+	return d.totalLinesAdded > 0
+		? Math.min(100, Math.round((d.pastedLines / d.totalLinesAdded) * 100))
+		: 0;
 }
