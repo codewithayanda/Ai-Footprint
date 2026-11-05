@@ -16,3 +16,4 @@ vsc-extension-quickstart.md
 **/*.vsix
 **/.vscode-test.*
 .github/**
+.npmrc
