@@ -73,7 +73,7 @@
         "aiFootprint.clipboardAware": {
           "type": "boolean",
           "default": true,
-          "description": "Cross-check insertions against the OS clipboard for more accurate paste detection."
+          "description": "Only count large insertions that match the OS clipboard as pastes. Formatters, refactors and snippets are ignored."
         },
         "aiFootprint.showStatusBar": {
           "type": "boolean",

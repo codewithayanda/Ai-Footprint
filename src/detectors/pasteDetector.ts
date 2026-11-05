@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
 
+/** 'unknown' means we couldn't tell (setting off, unreadable or empty clipboard) and must not discard the insertion. */
+export type ClipboardResult = 'match' | 'mismatch' | 'unknown';
+
 export interface PasteSignal {
 	lines: number;
 	chars: number;
 	languageId: string;
-	clipboardMatched: boolean;     // text matched the OS clipboard exactly
+	clipboard: ClipboardResult;
 	likelyOwnCode: boolean;        // text was recently produced inside this workspace
 }
 
@@ -22,7 +25,7 @@ export class PasteDetector {
 	private readonly recentLocalTexts: string[] = [];
 	private readonly RECENT_LOCAL_LIMIT = 32;
 
-	constructor(private readonly clipboardAware: boolean) {}
+	constructor(private readonly isClipboardAware: () => boolean) {}
 
 	/** Call when the user types/edits something small, to feed the "own code" cache. */
 	noteLocalEdit(text: string): void {
@@ -38,14 +41,13 @@ export class PasteDetector {
 		document: vscode.TextDocument,
 	): Promise<PasteSignal> {
 		const lines = countLines(text);
-		let clipboardMatched = false;
+		let clipboard: ClipboardResult = 'unknown';
 
-		if (this.clipboardAware) {
+		if (this.isClipboardAware()) {
 			try {
-				const clip = await vscode.env.clipboard.readText();
-				clipboardMatched = clip.length > 0 && clip.trim() === text.trim();
+				clipboard = compareToClipboard(text, await vscode.env.clipboard.readText());
 			} catch {
-				// Clipboard read can fail (permissions, remote environments). Treat as no match.
+				// Unreadable clipboard (remote, permissions) stays 'unknown'.
 			}
 		}
 
@@ -55,10 +57,17 @@ export class PasteDetector {
 			lines,
 			chars: text.length,
 			languageId: document.languageId,
-			clipboardMatched,
+			clipboard,
 			likelyOwnCode,
 		};
 	}
+}
+
+/** Whitespace-insensitive, since VS Code re-indents pasted text. */
+export function compareToClipboard(text: string, clipboard: string): ClipboardResult {
+	if (clipboard.length === 0) {return 'unknown';}
+	const strip = (s: string): string => s.replace(/\s+/g, '');
+	return strip(text) === strip(clipboard) ? 'match' : 'mismatch';
 }
 
 /** Line breaks an edit inserted: 0 for a typed char, 1 for Enter (unlike `countLines`, which is >= 1). */

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { median, medianAbsoluteDeviation } from '../detectors/cadenceTracker';
-import { countLines, countNewlines } from '../detectors/pasteDetector';
+import { compareToClipboard, countLines, countNewlines } from '../detectors/pasteDetector';
 import { sameContent } from '../detectors/externalChange';
 import { isoDate, parseIso, addDays, daysAgo, emptyDay } from '../services/statsService';
 import { SCORING } from '../constants';
@@ -38,6 +38,17 @@ suite('typed line counting', () => {
 		assert.strictEqual(countLines('a'), 1);
 		assert.strictEqual(countNewlines('a'), 0);
 	});
+});
+
+suite('clipboard comparison', () => {
+	test('identical text matches', () => assert.strictEqual(compareToClipboard('a\nb', 'a\nb'), 'match'));
+	test('re-indented text matches', () => assert.strictEqual(compareToClipboard('a\n    b', 'a\n\t\tb\n'), 'match'));
+	test('CRLF vs LF matches', () => assert.strictEqual(compareToClipboard('a\nb', 'a\r\nb'), 'match'));
+	test('different text is a mismatch', () => assert.strictEqual(compareToClipboard('a\nb', 'x\ny'), 'mismatch'));
+	test('formatter output with extra tokens is a mismatch', () => {
+		assert.strictEqual(compareToClipboard('foo(a, b);', 'foo(a,b)'), 'mismatch');
+	});
+	test('empty clipboard is unknown, not a mismatch', () => assert.strictEqual(compareToClipboard('a\nb', ''), 'unknown'));
 });
 
 suite('disk content comparison', () => {
