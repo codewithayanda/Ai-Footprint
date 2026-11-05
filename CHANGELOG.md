@@ -65,6 +65,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   faster than you usually type; the line count is kept for real large insertions.
 
 ### Changed
+- **The dashboard follows a strict content security policy.** Its markup, styles and
+  script now live in separate files under `media/dashboard` instead of one inline block,
+  so the page no longer needs `unsafe-inline`: only the one script carrying a fresh
+  random nonce can run, and styles load from the extension's own file. The page looks
+  and behaves the same. Colours, spacing, type sizes and animation timings are now named
+  tokens at the top of the stylesheet.
 - **Stats are no longer rewritten on every edit.** Saving to VS Code storage is now
   limited to once every 5 seconds, and the status bar and dashboard update in batches
   of 250 ms. Pending changes are saved when VS Code closes, so only a hard crash can
