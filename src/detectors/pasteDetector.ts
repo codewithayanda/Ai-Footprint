@@ -8,39 +8,19 @@ export interface PasteSignal {
 	chars: number;
 	languageId: string;
 	clipboard: ClipboardResult;
-	likelyOwnCode: boolean;        // text was recently produced inside this workspace
+	alreadyInWorkspace: boolean;
 }
 
-/**
- * Heuristically classifies large insertions as pastes and decides whether the
- * pasted text likely came from this workspace (in which case the caller may
- * choose to weight it less). We deliberately do not hook the paste *command*,
- * because not all pastes flow through it (drag/drop, source-control apply,
- * snippet expansion). Instead we observe insertions and cross-check with the
- * clipboard.
- */
-export class PasteDetector {
-	// Rolling set of texts the user has recently produced inside this workspace.
-	// Used to recognize "I'm pasting my own code from another file".
-	private readonly recentLocalTexts: string[] = [];
-	private readonly RECENT_LOCAL_LIMIT = 32;
+const MIN_MATCH_CHARS = 20;
+const MAX_DOC_CHARS = 2_000_000;
 
+export type DocumentLike = Pick<vscode.TextDocument, 'uri' | 'getText'>;
+
+/** Classifies a large insertion: does it match the clipboard, and was the text already in the workspace? */
+export class PasteDetector {
 	constructor(private readonly isClipboardAware: () => boolean) {}
 
-	/** Call when the user types/edits something small, to feed the "own code" cache. */
-	noteLocalEdit(text: string): void {
-		if (text.length < 16) {return;}
-		this.recentLocalTexts.push(text);
-		if (this.recentLocalTexts.length > this.RECENT_LOCAL_LIMIT) {
-			this.recentLocalTexts.shift();
-		}
-	}
-
-	async classify(
-		text: string,
-		document: vscode.TextDocument,
-	): Promise<PasteSignal> {
-		const lines = countLines(text);
+	async classify(text: string, document: vscode.TextDocument): Promise<PasteSignal> {
 		let clipboard: ClipboardResult = 'unknown';
 
 		if (this.isClipboardAware()) {
@@ -51,23 +31,44 @@ export class PasteDetector {
 			}
 		}
 
-		const likelyOwnCode = this.recentLocalTexts.some(t => t.includes(text.trim()) || text.includes(t));
-
 		return {
-			lines,
+			lines: countLines(text),
 			chars: text.length,
 			languageId: document.languageId,
 			clipboard,
-			likelyOwnCode,
+			alreadyInWorkspace: existsElsewhere(text, document, vscode.workspace.textDocuments),
 		};
 	}
 }
 
+const squash = (s: string): string => s.replace(/\s+/g, '');
+
 /** Whitespace-insensitive, since VS Code re-indents pasted text. */
 export function compareToClipboard(text: string, clipboard: string): ClipboardResult {
 	if (clipboard.length === 0) {return 'unknown';}
-	const strip = (s: string): string => s.replace(/\s+/g, '');
-	return strip(text) === strip(clipboard) ? 'match' : 'mismatch';
+	return squash(text) === squash(clipboard) ? 'match' : 'mismatch';
+}
+
+/**
+ * True when the text is in another open file, or twice in the target file
+ * (once is the insertion itself). Whitespace is ignored; very short text never matches.
+ */
+export function existsElsewhere(text: string, target: DocumentLike, documents: readonly DocumentLike[]): boolean {
+	const needle = squash(text);
+	if (needle.length < MIN_MATCH_CHARS) {return false;}
+
+	for (const doc of documents) {
+		if (doc.uri.scheme !== 'file' && doc.uri.scheme !== 'untitled') {continue;}
+		const raw = doc.getText();
+		if (raw.length > MAX_DOC_CHARS) {continue;}
+
+		const haystack = squash(raw);
+		const first = haystack.indexOf(needle);
+		if (first === -1) {continue;}
+		if (doc.uri.toString() !== target.uri.toString()) {return true;}
+		if (haystack.indexOf(needle, first + needle.length) !== -1) {return true;}
+	}
+	return false;
 }
 
 /** Line breaks an edit inserted: 0 for a typed char, 1 for Enter (unlike `countLines`, which is >= 1). */
@@ -80,8 +81,6 @@ export function countNewlines(text: string): number {
 
 export function countLines(text: string): number {
 	if (!text) {return 0;}
-	// A multi-line paste of N lines has N-1 newlines; treat a non-empty
-	// trailing-newline-less segment as a final line so short snippets aren't 0.
 	const newlines = text.split('\n').length - 1;
 	const trailingLine = text.endsWith('\n') ? 0 : 1;
 	return Math.max(1, newlines + trailingLine);

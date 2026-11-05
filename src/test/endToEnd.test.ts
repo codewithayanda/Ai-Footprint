@@ -5,7 +5,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ExtensionApi } from '../extension';
 
-const block = (lines: number, tag = 'v'): string =>
+// Every call gets text no earlier test used, so a lingering open document can't look like "already in the workspace".
+let blocks = 0;
+const block = (lines: number, tag = `t${++blocks}x`): string =>
 	Array.from({ length: lines }, (_, i) => `const ${tag}${i} = ${i};`).join('\n');
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
@@ -74,14 +76,15 @@ suite('end to end (real editor events through the real extension)', function () 
 		await sleep(1_000);
 		assert.strictEqual(api.snapshot().today.pastes, 0, `not from the clipboard, must not count: ${show()}`);
 
-		await vscode.env.clipboard.writeText(block(10, 'w'));
+		await vscode.env.clipboard.writeText(block(10));
 		await paste();
 		assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `handler must still be alive: ${show()}`);
 	});
 
 	test('undoing a deletion is not counted as a paste', async () => {
 		const editor = await openUntitled();
-		await vscode.env.clipboard.writeText(block(10));
+		const text = block(10);
+		await vscode.env.clipboard.writeText(text);
 		await paste();
 		assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), show());
 
@@ -90,7 +93,7 @@ suite('end to end (real editor events through the real extension)', function () 
 		assert.strictEqual(editor.document.getText(), '');
 
 		await vscode.commands.executeCommand('undo');
-		assert.strictEqual(editor.document.getText().replace(/\r\n/g, '\n'), block(10), 'undo must put the text back');
+		assert.strictEqual(editor.document.getText().replace(/\r\n/g, '\n'), text, 'undo must put the text back');
 		await sleep(1_000);
 		assert.strictEqual(api.snapshot().today.pastes, 1, `undo must not add a paste: ${show()}`);
 	});
@@ -109,7 +112,7 @@ suite('end to end (real editor events through the real extension)', function () 
 			await sleep(1_000);
 			assert.strictEqual(api.snapshot().today.pastes, 0, `a disk reload must not count: ${show()}`);
 
-			await vscode.env.clipboard.writeText(block(12, 'w'));
+			await vscode.env.clipboard.writeText(block(12));
 			await paste();
 			assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `a real paste must count: ${show()}`);
 		} finally {
@@ -156,11 +159,62 @@ suite('end to end (real editor events through the real extension)', function () 
 
 			await config.update('excludeLanguages', undefined, vscode.ConfigurationTarget.Global);
 			await sleep(300);
-			await vscode.env.clipboard.writeText(block(10, 'w'));
+			await vscode.env.clipboard.writeText(block(10));
 			await paste();
 			assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `detection must come back: ${show()}`);
 		} finally {
 			await config.update('excludeLanguages', undefined, vscode.ConfigurationTarget.Global);
 		}
+	});
+
+	async function withSourceFile(name: string, content: string, run: (file: string) => Promise<void>): Promise<void> {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'af-e2e-'));
+		const file = path.join(dir, name);
+		fs.writeFileSync(file, content);
+		try {
+			await run(file);
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	}
+
+	test('code copied from another open file is not counted as a paste', async () => {
+		const text = block(10);
+		await withSourceFile('source.ts', text + '\n', async file => {
+			await vscode.workspace.openTextDocument(file);
+			await openUntitled();
+			await vscode.env.clipboard.writeText(text);
+			await paste();
+			await sleep(1_000);
+			assert.strictEqual(api.snapshot().today.pastes, 0, `it was already in an open file: ${show()}`);
+		});
+	});
+
+	test('duplicating a block inside the same file is not counted', async () => {
+		const text = block(10);
+		await withSourceFile('dup.ts', text + '\n', async file => {
+			try {
+				await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
+				await vscode.commands.executeCommand('cursorBottom');
+				await vscode.env.clipboard.writeText(text + '\n');
+				await paste();
+				await sleep(1_000);
+				assert.strictEqual(api.snapshot().today.pastes, 0, `it was already in this file: ${show()}`);
+			} finally {
+				await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+			}
+		});
+	});
+
+	test('a paste that only partly overlaps open code still counts', async () => {
+		const source = block(10);
+		const pasted = source.split('\n').slice(0, 9).concat('const somethingNew = 1;').join('\n');
+		await withSourceFile('source.ts', source + '\n', async file => {
+			await vscode.workspace.openTextDocument(file);
+			await openUntitled();
+			await vscode.env.clipboard.writeText(pasted);
+			await paste();
+			assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `partial overlap is new code: ${show()}`);
+		});
 	});
 });
