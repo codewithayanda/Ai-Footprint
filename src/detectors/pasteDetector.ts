@@ -18,7 +18,14 @@ export type DocumentLike = Pick<vscode.TextDocument, 'uri' | 'getText'>;
 
 /** Classifies a large insertion: does it match the clipboard, and was the text already in the workspace? */
 export class PasteDetector {
+	private readonly counted = new PastedTexts();
+
 	constructor(private readonly isClipboardAware: () => boolean) {}
+
+	/** Call for every paste that was counted, so pasting the same text again is not mistaken for your own code. */
+	remember(text: string): void {
+		this.counted.remember(text);
+	}
 
 	async classify(text: string, document: vscode.TextDocument): Promise<PasteSignal> {
 		let clipboard: ClipboardResult = 'unknown';
@@ -36,12 +43,40 @@ export class PasteDetector {
 			chars: text.length,
 			languageId: document.languageId,
 			clipboard,
-			alreadyInWorkspace: existsElsewhere(text, document, vscode.workspace.textDocuments),
+			alreadyInWorkspace: !this.counted.contains(text)
+				&& existsElsewhere(text, document, vscode.workspace.textDocuments),
 		};
 	}
 }
 
 const squash = (s: string): string => s.replace(/\s+/g, '');
+
+/**
+ * Text that arrived by a counted paste. A later paste of the same text, or of any part of it,
+ * is still a paste even though the text now sits in your files. Oldest entries are dropped
+ * once the total size passes the budget.
+ */
+export class PastedTexts {
+	private items: string[] = [];
+	private total = 0;
+
+	constructor(private readonly maxChars = 5_000_000) {}
+
+	remember(text: string): void {
+		const squashed = squash(text);
+		if (squashed.length < MIN_MATCH_CHARS) {return;}
+		this.items.push(squashed);
+		this.total += squashed.length;
+		while (this.total > this.maxChars && this.items.length > 1) {
+			this.total -= this.items.shift()!.length;
+		}
+	}
+
+	contains(text: string): boolean {
+		const needle = squash(text);
+		return needle.length >= MIN_MATCH_CHARS && this.items.some(item => item.includes(needle));
+	}
+}
 
 /** Whitespace-insensitive, since VS Code re-indents pasted text. */
 export function compareToClipboard(text: string, clipboard: string): ClipboardResult {

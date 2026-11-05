@@ -106,6 +106,7 @@ function processChanges(event: vscode.TextDocumentChangeEvent, deps: Deps, paste
 				.then(signal => {
 					if (signal.clipboard === 'mismatch' || signal.alreadyInWorkspace) {return;}
 					deps.stats.recordPaste(signal.lines);
+					deps.paste.remember(text);
 					deps.nudges.evaluate({
 						linesAdded: signal.lines,
 						isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),

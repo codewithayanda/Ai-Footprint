@@ -33,3 +33,18 @@ suite('PasteDetector.classify (real clipboard)', function () {
 		assert.strictEqual(signal.clipboard, 'unknown');
 	});
 });
+
+suite('PasteDetector own-code check (real documents)', function () {
+	this.timeout(20_000);
+
+	test('a block counted as a paste is no longer reported as already in the workspace', async () => {
+		const stamp = Date.now();
+		const text = Array.from({ length: 6 }, (_, i) => `const own${stamp}x${i} = ${i};`).join('\n');
+		const doc = await vscode.workspace.openTextDocument({ content: `${text}\n${text}`, language: 'typescript' });
+		const detector = new PasteDetector(() => false);
+
+		assert.strictEqual((await detector.classify(text, doc)).alreadyInWorkspace, true, 'a duplicate of uncounted text is your own code');
+		detector.remember(text);
+		assert.strictEqual((await detector.classify(text, doc)).alreadyInWorkspace, false, 'once counted, pasting it again is a paste');
+	});
+});
