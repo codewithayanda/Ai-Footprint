@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { median, medianAbsoluteDeviation } from '../detectors/cadenceTracker';
-import { countLines } from '../detectors/pasteDetector';
+import { countLines, countNewlines } from '../detectors/pasteDetector';
 import { isoDate, parseIso, addDays, daysAgo, emptyDay } from '../services/statsService';
 import { SCORING } from '../constants';
 
@@ -22,6 +22,21 @@ suite('paste line counting', () => {
 	test('two lines without trailing newline', () => assert.strictEqual(countLines('a\nb'), 2));
 	test('two lines with trailing newline', () => assert.strictEqual(countLines('a\nb\n'), 2));
 	test('three lines mixed', () => assert.strictEqual(countLines('a\nb\nc'), 3));
+});
+
+suite('typed line counting', () => {
+	test('empty string adds 0 lines', () => assert.strictEqual(countNewlines(''), 0));
+	test('a typed character adds 0 lines', () => assert.strictEqual(countNewlines('a'), 0));
+	test('typing 200 characters adds 0 lines', () => assert.strictEqual(countNewlines('x'.repeat(200)), 0));
+	test('Enter adds 1 line', () => assert.strictEqual(countNewlines('\n'), 1));
+	test('Enter with auto-indent still adds 1 line', () => assert.strictEqual(countNewlines('\n    '), 1));
+	test('Enter with tab auto-indent still adds 1 line', () => assert.strictEqual(countNewlines('\n\t\t'), 1));
+	test('CRLF counts once', () => assert.strictEqual(countNewlines('\r\n'), 1));
+	test('multi-line text counts each break', () => assert.strictEqual(countNewlines('a\nb\nc\n'), 3));
+	test('differs from countLines for a single character', () => {
+		assert.strictEqual(countLines('a'), 1);
+		assert.strictEqual(countNewlines('a'), 0);
+	});
 });
 
 suite('date helpers', () => {

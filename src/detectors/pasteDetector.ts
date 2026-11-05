@@ -61,6 +61,14 @@ export class PasteDetector {
 	}
 }
 
+/** Line breaks an edit inserted: 0 for a typed char, 1 for Enter (unlike `countLines`, which is >= 1). */
+export function countNewlines(text: string): number {
+	if (!text) {return 0;}
+	let count = 0;
+	for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) {count++;}
+	return count;
+}
+
 export function countLines(text: string): number {
 	if (!text) {return 0;}
 	// A multi-line paste of N lines has N-1 newlines; treat a non-empty

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { CadenceTracker } from './detectors/cadenceTracker';
-import { PasteDetector, countLines } from './detectors/pasteDetector';
+import { PasteDetector, countLines, countNewlines } from './detectors/pasteDetector';
 import { NudgeEngine } from './nudge/nudgeEngine';
 import { StatsService } from './services/statsService';
 import { DashboardPanel } from './ui/dashboardPanel';
@@ -79,19 +79,20 @@ function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): voi
 						likelyOwnCode: signal.likelyOwnCode,
 					});
 				});
-		} else if (linesAdded > 0) {
-			// Human-paced typing: feed the "own code" cache and track total lines.
-			deps.paste.noteLocalEdit(text);
-			deps.stats.recordTyping(linesAdded);
-			// Still let the nudge engine consider fast-typing alerts.
-			deps.nudges.evaluate({
-				linesAdded,
-				isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
-				languageId,
-				likelyOwnCode: true,
-			});
 		} else {
 			deps.paste.noteLocalEdit(text);
+
+			if (charsAdded > 0) {
+				const typedLines = countNewlines(text);
+				if (typedLines > 0) {deps.stats.recordTyping(typedLines);}
+
+				deps.nudges.evaluate({
+					linesAdded: typedLines,
+					isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
+					languageId,
+					likelyOwnCode: true,
+				});
+			}
 		}
 	}
 }
