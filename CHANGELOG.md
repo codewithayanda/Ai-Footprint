@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- **Animated score ring.** Today's score now sits inside a ring that fills to match it.
+  When the score changes the arc glides to its new length while the number counts and
+  the colour shifts between green, yellow and red. The ring is announced to screen
+  readers as "Today's score: N out of 100" and shrinks to fit narrow panels.
 - **Ignore files and languages.** Two new settings stop AI Footprint counting anything in
   matching files: `aiFootprint.excludeGlobs` (by default lockfiles, minified and
   generated files, `dist`, `out`, `node_modules` and Git's own files) and
@@ -27,7 +31,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   matched, and even when it did it only muted the nudge while still lowering the score.
   A paste is now ignored completely when its text is already in another open file, or
   already elsewhere in the same file (whitespace and indentation are ignored, and very
-  short text never matches). Text pasted from a browser, chat or terminal is still counted.
+  short text never matches). Text pasted from a browser, chat or terminal is still counted,
+  and so is any text, or part of it, that was itself counted as a paste earlier in the
+  session: pasting the same block again and again counts every time. (That memory is
+  kept until the window is reloaded.)
 - **Large edits that never came from the clipboard were counted as pastes.** With
   `clipboardAware` on, a paste-sized insertion that doesn't match the clipboard
   (format on save, rename or refactor results, snippet expansion) is now ignored. If

@@ -15,7 +15,13 @@
 <section class="top-row">
 	<div class="score-card" id="scoreCard">
 		<div class="score-label">Today's Score</div>
-		<div class="score-value" id="score" data-value="0">…</div>
+		<div class="ring" id="ring" role="img" aria-label="Today's score">
+			<svg viewBox="0 0 120 120" aria-hidden="true">
+				<circle class="ring-track" cx="60" cy="60" r="52"/>
+				<circle class="ring-arc" id="ringArc" cx="60" cy="60" r="52" transform="rotate(-90 60 60)"/>
+			</svg>
+			<div class="score-value" id="score" data-value="0">…</div>
+		</div>
 	</div>
 	<div class="message-card">
 		<div class="message-headline" id="message">Loading…</div>

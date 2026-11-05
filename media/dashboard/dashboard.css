@@ -9,6 +9,9 @@
 	--bad: var(--vscode-errorForeground, #f44747);
 	--focus: var(--vscode-focusBorder, #4ec9b0);
 
+	/* 2 * pi * 52, the radius of the circles in dashboard.html */
+	--ring-circumference: 326.73;
+
 	--radius-card: 12px;
 	--radius-bar: 3px;
 	--radius-tick: 2px;
@@ -64,7 +67,26 @@ h1 { font-size: var(--text-lg); font-weight: 600; }
 	transition: background var(--dur-hero) ease;
 }
 .score-label { font-size: var(--text-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-.score-value { font-size: var(--text-display); font-weight: 700; line-height: 1; margin-top: var(--space-2); transition: color var(--dur-base) ease; position: relative; z-index: 1; }
+.ring {
+	position: relative; z-index: 1;
+	width: min(148px, 100%); aspect-ratio: 1;
+	margin: var(--space-3) auto 0;
+}
+.ring svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.ring-track, .ring-arc { fill: none; stroke-width: 8; }
+.ring-track { stroke: var(--border); }
+.ring-arc {
+	stroke: var(--score-tint, var(--good)); stroke-linecap: round;
+	stroke-dasharray: var(--ring-circumference);
+	stroke-dashoffset: var(--ring-circumference);
+	filter: drop-shadow(0 0 5px var(--score-tint, transparent));
+	transition: stroke-dashoffset var(--dur-hero) var(--ease-out), stroke var(--dur-base) ease, opacity var(--dur-fast) ease;
+}
+.score-value {
+	position: absolute; inset: 0; display: grid; place-items: center;
+	font-size: var(--text-display); font-weight: 700; line-height: 1;
+	transition: color var(--dur-base) ease;
+}
 
 .message-card {
 	background: var(--panel); border: 1px solid var(--border);

@@ -68,8 +68,20 @@ function todayIso() {
 	return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// The arc's length is its dash pattern: shifting the offset reveals more or less of the circle.
+function renderRing(score) {
+	const arc = $('ringArc');
+	const circumference = 2 * Math.PI * Number(arc.getAttribute('r'));
+	const fraction = Math.max(0, Math.min(100, score)) / 100;
+	arc.style.strokeDasharray = String(circumference);
+	arc.style.strokeDashoffset = String(circumference * (1 - fraction));
+	arc.style.opacity = fraction === 0 ? '0' : '1'; // a zero-length round cap would still draw a dot
+	$('ring').setAttribute('aria-label', 'Today\'s score: ' + score + ' out of 100');
+}
+
 function renderTop() {
 	const t = state.today;
+	renderRing(t.score);
 	tween($('score'), t.score, 600);
 	$('score').style.color = colorVar(t.score);
 	$('scoreCard').style.setProperty('--score-tint', colorVar(t.score));

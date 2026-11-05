@@ -23,7 +23,9 @@ async function waitFor(condition: () => boolean, timeoutMs = 5_000): Promise<boo
 
 async function openUntitled(): Promise<vscode.TextEditor> {
 	const doc = await vscode.workspace.openTextDocument({ content: '', language: 'typescript' });
-	return vscode.window.showTextDocument(doc);
+	const editor = await vscode.window.showTextDocument(doc);
+	await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+	return editor;
 }
 
 const paste = (): Thenable<unknown> => vscode.commands.executeCommand('editor.action.clipboardPasteAction');
@@ -216,5 +218,45 @@ suite('end to end (real editor events through the real extension)', function () 
 			await paste();
 			assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `partial overlap is new code: ${show()}`);
 		});
+	});
+
+	const closeActive = (): Thenable<unknown> => vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+
+	test('pasting the same block again and again counts every time', async () => {
+		const text = block(10);
+		await openUntitled();
+		await vscode.env.clipboard.writeText(text);
+		for (let n = 1; n <= 3; n++) {
+			await paste();
+			assert.ok(await waitFor(() => api.snapshot().today.pastes === n), `paste ${n} must count: ${show()}`);
+		}
+		assert.strictEqual(api.snapshot().today.pastedLines, 30, show());
+	});
+
+	test('pasting an already counted block into another file counts again', async () => {
+		const text = block(10);
+		await vscode.env.clipboard.writeText(text);
+		await openUntitled();
+		await paste();
+		assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), show());
+
+		await openUntitled();
+		await paste();
+		assert.ok(await waitFor(() => api.snapshot().today.pastes === 2), `second file: ${show()}`);
+		await closeActive();
+	});
+
+	test('pasting part of an already counted block counts too', async () => {
+		const text = block(10);
+		await vscode.env.clipboard.writeText(text);
+		await openUntitled();
+		await paste();
+		assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), show());
+
+		await vscode.env.clipboard.writeText(text.split('\n').slice(0, 6).join('\n'));
+		await openUntitled();
+		await paste();
+		assert.ok(await waitFor(() => api.snapshot().today.pastes === 2), `part of a counted paste: ${show()}`);
+		await closeActive();
 	});
 });

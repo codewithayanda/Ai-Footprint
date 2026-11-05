@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { DocumentLike, existsElsewhere } from '../detectors/pasteDetector';
+import { DocumentLike, PastedTexts, existsElsewhere } from '../detectors/pasteDetector';
 
 const doc = (text: string, uri = 'file:///a.ts'): DocumentLike => ({ uri: vscode.Uri.parse(uri), getText: () => text });
 
@@ -68,5 +68,60 @@ suite('existsElsewhere', () => {
 	test('no other documents means nothing to match', () => {
 		const target = doc(code, 'file:///target.ts');
 		assert.ok(!existsElsewhere(code, target, []));
+	});
+});
+
+suite('PastedTexts', () => {
+	test('the exact text that was counted is recognised', () => {
+		const pasted = new PastedTexts();
+		pasted.remember(code);
+		assert.ok(pasted.contains(code));
+	});
+
+	test('any part of a counted paste is recognised too', () => {
+		const pasted = new PastedTexts();
+		pasted.remember(code);
+		assert.ok(pasted.contains(code.split('\n').slice(0, 2).join('\n')));
+	});
+
+	test('indentation and line endings do not matter', () => {
+		const pasted = new PastedTexts();
+		pasted.remember(code);
+		assert.ok(pasted.contains(code.replace(/\n/g, '\r\n\t\t')));
+	});
+
+	test('text that was never counted is not recognised', () => {
+		const pasted = new PastedTexts();
+		pasted.remember(code);
+		assert.ok(!pasted.contains('function somethingElse() { return 42; }'));
+		assert.ok(!new PastedTexts().contains(code));
+	});
+
+	test('text that only extends a counted paste is new', () => {
+		const pasted = new PastedTexts();
+		pasted.remember(code);
+		assert.ok(!pasted.contains(code + '\nconst delta = alpha - beta;'));
+	});
+
+	test('very short text is never stored or matched', () => {
+		const pasted = new PastedTexts();
+		pasted.remember('import x;');
+		assert.ok(!pasted.contains('import x;'));
+	});
+
+	test('the oldest texts are forgotten once the size budget is passed', () => {
+		const pasted = new PastedTexts(100);
+		const first = 'a'.repeat(60);
+		const second = 'b'.repeat(60);
+		pasted.remember(first);
+		pasted.remember(second);
+		assert.ok(!pasted.contains(first));
+		assert.ok(pasted.contains(second));
+	});
+
+	test('the newest text is kept even when it alone exceeds the budget', () => {
+		const pasted = new PastedTexts(100);
+		pasted.remember('c'.repeat(500));
+		assert.ok(pasted.contains('c'.repeat(500)));
 	});
 });
