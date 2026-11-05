@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- **Animated score ring.** Today's score now sits inside a ring that fills to match it.
+  When the score changes the arc glides to its new length while the number counts and
+  the colour shifts between green, yellow and red. The ring is announced to screen
+  readers as "Today's score: N out of 100" and shrinks to fit narrow panels.
 - **Ignore files and languages.** Two new settings stop AI Footprint counting anything in
   matching files: `aiFootprint.excludeGlobs` (by default lockfiles, minified and
   generated files, `dist`, `out`, `node_modules` and Git's own files) and
