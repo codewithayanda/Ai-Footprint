@@ -14,6 +14,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   apply immediately.
 
 ### Fixed
+- **Two VS Code windows overwrote each other's stats.** Each window kept its own copy of
+  the history and saved the whole thing, so the window that saved last erased what the
+  other had recorded. Windows now add only their own changes on top of what is stored
+  (pastes, lines and nudges add up, score deductions combine, the biggest paste takes
+  the larger value), and each window picks up the other's saved changes within about 10
+  seconds. Clearing data in one window is no longer undone by another. If two windows
+  save at the same instant one update can still be lost; VS Code offers no lock to
+  prevent that.
 - **Moving your own code was counted as a paste.** The old "own code" check was fed only
   by single-keystroke edits (and ignored anything under 16 characters), so it never
   matched, and even when it did it only muted the nudge while still lowering the score.

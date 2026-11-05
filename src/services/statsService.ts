@@ -47,38 +47,38 @@ export class StatsService implements vscode.Disposable {
 	readonly onChanged = this.emitter.event;
 
 	private days = new Map<string, DayRecord>();
+	// What storage held the last time we synced: our unsaved changes are `days` minus this.
+	private base = new Map<string, DayRecord>();
+	private seenStored: unknown;
 	private streak: StreakRecord;
 	private rolloverTimer?: NodeJS.Timeout;
 	private emitTimer?: NodeJS.Timeout;
 	private writeTimer?: NodeJS.Timeout;
+	private pullTimer?: NodeJS.Timeout;
 	private unsaved = false;
+	private readonly timing: Timing;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
-		private readonly timing: { writeIntervalMs: number; emitDelayMs: number } = PERSISTENCE,
+		timing: Partial<Timing> = {},
 	) {
-		const saved = context.globalState.get<DayRecord[]>(STORAGE_KEYS.dailyStats) ?? [];
-		for (const d of saved) {
-			// Backfill fields added after v0.1.0.
-			if (!Array.isArray(d.hourlyPastes) || d.hourlyPastes.length !== 24) {
-				d.hourlyPastes = new Array(24).fill(0);
-			}
-			if (typeof d.biggestPasteLines !== 'number') {
-				d.biggestPasteLines = 0;
-			}
-			this.days.set(d.date, d);
-		}
+		this.timing = { ...PERSISTENCE, ...timing };
+		this.seenStored = context.globalState.get(STORAGE_KEYS.dailyStats);
+		this.days = this.readStored();
+		this.base = cloneDays(this.days);
 		this.streak = context.globalState.get<StreakRecord>(STORAGE_KEYS.streak)
 			?? { current: 0, best: 0, lastEvaluated: '' };
 
 		this.ensureTodayRecord();
 		this.advanceStreakIfNeeded();
 		this.scheduleMidnightRollover();
+		this.pullTimer = setInterval(() => { if (this.pull()) {this.emitNow();} }, this.timing.pullIntervalMs);
 	}
 
 	dispose(): void {
 		void this.flush();
 		if (this.emitTimer) {clearTimeout(this.emitTimer);}
+		if (this.pullTimer) {clearInterval(this.pullTimer);}
 		this.emitter.dispose();
 		if (this.rolloverTimer) {clearTimeout(this.rolloverTimer);}
 	}
@@ -91,10 +91,8 @@ export class StatsService implements vscode.Disposable {
 		}
 		if (!this.unsaved) {return;}
 		this.unsaved = false;
-		await Promise.all([
-			this.context.globalState.update(STORAGE_KEYS.dailyStats, [...this.days.values()]),
-			this.context.globalState.update(STORAGE_KEYS.streak, this.streak),
-		]);
+		this.pull();
+		await this.write();
 	}
 
 	/** The deduction is capped so one huge paste can't zero the day. */
@@ -126,16 +124,22 @@ export class StatsService implements vscode.Disposable {
 		this.markChanged();
 	}
 
+	/** Overwrites storage on purpose: clearing in one window must not be merged back from another. */
 	async clear(): Promise<void> {
+		if (this.writeTimer) {
+			clearTimeout(this.writeTimer);
+			this.writeTimer = undefined;
+		}
 		this.days.clear();
 		this.streak = { current: 0, best: 0, lastEvaluated: '' };
 		this.ensureTodayRecord();
-		this.unsaved = true;
-		await this.flush();
+		this.unsaved = false;
+		await this.write();
 		this.emitNow();
 	}
 
 	snapshot(): SnapshotEvent {
+		this.pull();
 		const today = this.ensureTodayRecord();
 		const yesterdayKey = isoDate(daysAgo(1));
 		const yesterday = this.days.get(yesterdayKey);
@@ -173,6 +177,7 @@ export class StatsService implements vscode.Disposable {
 
 	/** Oldest first; missing days are zeroed. */
 	lastNDays(n: number): DayRecord[] {
+		this.pull();
 		const out: DayRecord[] = [];
 		for (let i = n - 1; i >= 0; i--) {
 			const key = isoDate(daysAgo(i));
@@ -211,6 +216,41 @@ export class StatsService implements vscode.Disposable {
 		}, next.getTime() - now.getTime());
 	}
 
+	private readStored(): Map<string, DayRecord> {
+		const saved = this.context.globalState.get<DayRecord[]>(STORAGE_KEYS.dailyStats) ?? [];
+		return new Map(saved.map(d => [d.date, cloneDay(d)]));
+	}
+
+	/** Folds in what other windows saved, keeping our unsaved changes on top. Returns true if storage had changed. */
+	private pull(): boolean {
+		const raw = this.context.globalState.get<DayRecord[]>(STORAGE_KEYS.dailyStats);
+		if (raw === this.seenStored) {return false;}
+		this.seenStored = raw;
+
+		const stored = this.readStored();
+		const merged = new Map<string, DayRecord>();
+		for (const date of new Set([...stored.keys(), ...this.days.keys()])) {
+			const day = mergeDay(date, stored.get(date), this.days.get(date), this.base.get(date));
+			if (day) {merged.set(date, day);}
+		}
+		this.days = merged;
+		this.base = stored;
+		this.streak = mergeStreak(this.streak, this.context.globalState.get<StreakRecord>(STORAGE_KEYS.streak));
+		return true;
+	}
+
+	private write(): Promise<void> {
+		// Snapshot synchronously so edits made while the write is in flight still count as unsaved.
+		const payload = cloneDays(this.days);
+		this.base = cloneDays(payload);
+		const done = Promise.all([
+			this.context.globalState.update(STORAGE_KEYS.dailyStats, [...payload.values()]),
+			this.context.globalState.update(STORAGE_KEYS.streak, { ...this.streak }),
+		]);
+		this.seenStored = this.context.globalState.get(STORAGE_KEYS.dailyStats);
+		return done.then(() => undefined);
+	}
+
 	private markChanged(): void {
 		this.unsaved = true;
 		this.writeTimer ??= setTimeout(() => { void this.flush(); }, this.timing.writeIntervalMs);
@@ -224,6 +264,64 @@ export class StatsService implements vscode.Disposable {
 		}
 		this.emitter.fire(this.snapshot());
 	}
+}
+
+interface Timing {
+	writeIntervalMs: number;
+	emitDelayMs: number;
+	pullIntervalMs: number;
+}
+
+export function cloneDay(d: DayRecord): DayRecord {
+	return {
+		...d,
+		biggestPasteLines: typeof d.biggestPasteLines === 'number' ? d.biggestPasteLines : 0,
+		hourlyPastes: Array.isArray(d.hourlyPastes) && d.hourlyPastes.length === 24
+			? [...d.hourlyPastes]
+			: new Array(24).fill(0),
+	};
+}
+
+function cloneDays(days: ReadonlyMap<string, DayRecord>): Map<string, DayRecord> {
+	return new Map([...days].map(([date, d]) => [date, cloneDay(d)]));
+}
+
+/**
+ * Combines what storage holds now (`stored`) with what this window changed since it last
+ * synced (`current` minus `base`). Counters add, the score moves by our change, the biggest
+ * paste takes the larger value. Another window's data is kept, never overwritten.
+ */
+export function mergeDay(
+	date: string,
+	stored: DayRecord | undefined,
+	current: DayRecord | undefined,
+	base: DayRecord | undefined,
+): DayRecord | undefined {
+	if (!current) {return stored && cloneDay(stored);}
+
+	const before = base ?? emptyDay(date);
+	const out = cloneDay(stored ?? emptyDay(date));
+	const added = (now: number, was: number): number => Math.max(0, now - was);
+
+	out.pastes += added(current.pastes, before.pastes);
+	out.nudges += added(current.nudges, before.nudges);
+	out.pastedLines += added(current.pastedLines, before.pastedLines);
+	out.totalLinesAdded += added(current.totalLinesAdded, before.totalLinesAdded);
+	out.score = Math.min(SCORING.startingScore, Math.max(0, out.score + (current.score - before.score)));
+	if (current.biggestPasteLines !== before.biggestPasteLines) {
+		out.biggestPasteLines = Math.max(out.biggestPasteLines, current.biggestPasteLines);
+	}
+	for (let h = 0; h < 24; h++) {
+		out.hourlyPastes[h] += added(current.hourlyPastes[h] ?? 0, before.hourlyPastes[h] ?? 0);
+	}
+	return out;
+}
+
+/** The streak evaluated more recently wins; the best is the larger of the two. */
+export function mergeStreak(ours: StreakRecord, stored: StreakRecord | undefined): StreakRecord {
+	if (!stored) {return ours;}
+	const newer = stored.lastEvaluated > ours.lastEvaluated ? stored : ours;
+	return { current: newer.current, best: Math.max(ours.best, stored.best), lastEvaluated: newer.lastEvaluated };
 }
 
 export function isoDate(d: Date): string {
