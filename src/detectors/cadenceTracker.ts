@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { CADENCE, STORAGE_KEYS } from '../constants';
 
-interface LanguageBaseline {
+export interface LanguageBaseline {
 	medianMs: number;
-	madMs: number;      // median absolute deviation: a robust measure of spread
+	madMs: number;
 	samples: number;
 	updatedAt: number;
 }
@@ -13,43 +13,39 @@ interface PersistedBaselines {
 }
 
 /**
- * Tracks the user's typing rhythm per language and exposes a single
- * `isSuspiciouslyFast` signal. Uses median + MAD rather than mean +
- * stdev so a few long pauses or instant accepts don't poison the baseline.
- *
- * Intentionally ignores edits whose `charsAdded` exceeds the configured
- * keystroke cutoff. Those are pastes, snippet expansions, or autocomplete
- * acceptances and must not enter the baseline.
+ * Tracks typing rhythm per language and flags bursts much faster than the stored baseline.
+ * Edits longer than a keystroke (paste, snippet, autocomplete) never enter the window.
  */
 export class CadenceTracker {
 	private intervalsByLang = new Map<string, number[]>();
 	private lastKeystrokeByLang = new Map<string, number>();
+	private sinceBaselineUpdate = new Map<string, number>();
 	private baselines: PersistedBaselines;
 	private dirty = false;
 
-	constructor(private readonly context: vscode.ExtensionContext) {
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly clock: () => number = Date.now,
+	) {
 		this.baselines = context.globalState.get<PersistedBaselines>(STORAGE_KEYS.cadenceBaselines) ?? {};
 	}
 
 	async clear(): Promise<void> {
 		this.intervalsByLang.clear();
 		this.lastKeystrokeByLang.clear();
+		this.sinceBaselineUpdate.clear();
 		this.baselines = {};
 		this.dirty = false;
 		await this.context.globalState.update(STORAGE_KEYS.cadenceBaselines, undefined);
 	}
 
 	track(languageId: string, charsAdded: number, charsRemoved: number): void {
-		// Non-keystroke edits never feed the baseline. Backspaces (removed > 0,
-		// added 0) are evidence of human editing but don't have a meaningful
-		// inter-keystroke interval, so we just refresh the timestamp.
-		const now = Date.now();
+		const now = this.clock();
 		const isLikelyKeystroke = charsAdded > 0 && charsAdded <= CADENCE.maxCharsPerKeystroke;
 		const isBackspace = charsAdded === 0 && charsRemoved > 0 && charsRemoved <= CADENCE.maxCharsPerKeystroke;
 
 		if (!isLikelyKeystroke && !isBackspace) {
-			// Big insertion (paste / autocomplete): reset the last-keystroke timer
-			// so the next genuine keystroke doesn't compute a bogus interval.
+			// The next keystroke would otherwise measure its interval from before the paste.
 			this.lastKeystrokeByLang.delete(languageId);
 			return;
 		}
@@ -59,32 +55,30 @@ export class CadenceTracker {
 		if (prev === undefined || !isLikelyKeystroke) {return;}
 
 		const interval = now - prev;
-		if (interval <= 0 || interval > CADENCE.maxIntervalMs) {return;}
+		if (interval < CADENCE.minIntervalMs || interval > CADENCE.maxIntervalMs) {return;}
 
 		const arr = this.intervalsByLang.get(languageId) ?? [];
 		arr.push(interval);
 		if (arr.length > CADENCE.windowSize) {arr.shift();}
 		this.intervalsByLang.set(languageId, arr);
 
-		// Update baselines periodically.
-		if (arr.length >= CADENCE.minSamplesForBaseline && arr.length % 25 === 0) {
+		const count = (this.sinceBaselineUpdate.get(languageId) ?? 0) + 1;
+		this.sinceBaselineUpdate.set(languageId, count);
+
+		// A fast window must not drag the baseline down toward itself.
+		if (
+			count >= CADENCE.baselineUpdateEvery
+			&& arr.length >= CADENCE.minSamplesForBaseline
+			&& !this.isSuspiciouslyFast(languageId)
+		) {
 			this.updateBaseline(languageId, arr);
+			this.sinceBaselineUpdate.set(languageId, 0);
 		}
 	}
 
 	isSuspiciouslyFast(languageId: string): boolean {
-		const arr = this.intervalsByLang.get(languageId) ?? [];
-		if (arr.length < CADENCE.minSamplesForBaseline) {return false;}
-
 		const baseline = this.baselines[languageId];
-		if (!baseline) {return false;}
-
-		// Use the most recent third of the window as the "current" tempo so a
-		// recent burst stands out against the baseline median.
-		const recent = arr.slice(-Math.max(10, Math.floor(arr.length / 3)));
-		const currentMedian = median(recent);
-
-		return currentMedian > 0 && currentMedian * CADENCE.fastMultiplier < baseline.medianMs;
+		return !!baseline && isFasterThanBaseline(this.intervalsByLang.get(languageId) ?? [], baseline.medianMs);
 	}
 
 	flush(): void {
@@ -95,20 +89,35 @@ export class CadenceTracker {
 	}
 
 	private updateBaseline(languageId: string, intervals: number[]): void {
-		const m = median(intervals);
-		const mad = medianAbsoluteDeviation(intervals, m);
-		this.baselines[languageId] = {
-			medianMs: m,
-			madMs: mad,
-			samples: intervals.length,
-			updatedAt: Date.now(),
-		};
+		this.baselines[languageId] = blendBaseline(this.baselines[languageId], intervals, this.clock());
 		this.dirty = true;
 		this.flush();
 	}
 }
 
-// --- Pure stats helpers (exported for tests) -------------------------------
+/** Compares the most recent third of the window to the baseline, so a fresh burst stands out. */
+export function isFasterThanBaseline(intervals: number[], baselineMedianMs: number): boolean {
+	if (intervals.length < CADENCE.minSamplesForBaseline) {return false;}
+	const recent = intervals.slice(-Math.max(10, Math.floor(intervals.length / 3)));
+	const current = median(recent);
+	return current > 0 && current * CADENCE.fastMultiplier < baselineMedianMs;
+}
+
+/** Moves the stored baseline part of the way toward the window median; the first baseline is the median itself. */
+export function blendBaseline(
+	prev: LanguageBaseline | undefined,
+	intervals: number[],
+	now: number,
+): LanguageBaseline {
+	const m = median(intervals);
+	const w = CADENCE.baselineWeight;
+	return {
+		medianMs: prev ? Math.round(prev.medianMs * (1 - w) + m * w) : m,
+		madMs: medianAbsoluteDeviation(intervals, m),
+		samples: intervals.length,
+		updatedAt: now,
+	};
+}
 
 export function median(values: number[]): number {
 	if (values.length === 0) {return 0;}

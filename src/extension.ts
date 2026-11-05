@@ -3,14 +3,20 @@ import { CadenceTracker } from './detectors/cadenceTracker';
 import { PasteDetector, countLines, countNewlines } from './detectors/pasteDetector';
 import { isSyncedWithDisk } from './detectors/externalChange';
 import { NudgeEngine } from './nudge/nudgeEngine';
-import { StatsService } from './services/statsService';
+import { StatsService, SnapshotEvent } from './services/statsService';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { getSettings, onSettingsChanged } from './config/settings';
 import { STORAGE_KEYS } from './constants';
 
 let activeStats: StatsService | undefined;
 
-export function activate(context: vscode.ExtensionContext): void {
+/** Read-only window onto the stats, used by the end-to-end tests. */
+export interface ExtensionApi {
+	snapshot(): SnapshotEvent;
+	clearStats(): Promise<void>;
+}
+
+export function activate(context: vscode.ExtensionContext): ExtensionApi {
 	const stats = new StatsService(context);
 	activeStats = stats;
 	const cadence = new CadenceTracker(context);
@@ -41,6 +47,8 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	maybeShowOnboarding(context);
+
+	return { snapshot: () => stats.snapshot(), clearStats: () => stats.clear() };
 }
 
 export function deactivate(): Promise<void> | undefined {

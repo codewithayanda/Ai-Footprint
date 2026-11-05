@@ -3,7 +3,18 @@ import { getSettings } from '../config/settings';
 import { NUDGE, STORAGE_KEYS } from '../constants';
 import type { StatsService } from '../services/statsService';
 
-type NudgeLevel = 'subtle' | 'warning' | 'strong';
+export type NudgeLevel = 'subtle' | 'warning' | 'strong';
+
+export function nudgeMessage(level: NudgeLevel, ctx: NudgeContext): string {
+	const tail = ctx.languageId ? ` (${ctx.languageId})` : '';
+	if (level === 'subtle') {return `$(eye) AI Footprint: review what you just added${tail}.`;}
+	if (ctx.isFastTyping && ctx.linesAdded < NUDGE.subtleLines) {
+		return `AI Footprint: code is arriving much faster than you usually type${tail}. Do you understand what it does?`;
+	}
+	return level === 'warning'
+		? `AI Footprint: ${ctx.linesAdded} lines added at once${tail}. Do you understand what this code does?`
+		: `AI Footprint: ${ctx.linesAdded} lines added at once${tail}. Review this carefully before moving on.`;
+}
 
 interface NudgeRecord {
 	timestamp: number;
@@ -107,18 +118,15 @@ export class NudgeEngine implements vscode.Disposable {
 	}
 
 	private fire(level: NudgeLevel, ctx: NudgeContext): void {
-		const tail = ctx.languageId ? ` (${ctx.languageId})` : '';
+		const message = nudgeMessage(level, ctx);
 		switch (level) {
 			case 'subtle':
-				vscode.window.setStatusBarMessage(
-					`$(eye) AI Footprint: review what you just added${tail}.`,
-					NUDGE.statusBarMs,
-				);
+				vscode.window.setStatusBarMessage(message, NUDGE.statusBarMs);
 				return;
 			case 'warning':
 				void vscode.window
 					.showWarningMessage(
-						`AI Footprint: ${ctx.linesAdded} lines added at once${tail}. Do you understand what this code does?`,
+						message,
 						'Got it',
 						`Snooze ${NUDGE.snoozeMinutes}m`,
 					)
@@ -129,7 +137,7 @@ export class NudgeEngine implements vscode.Disposable {
 			case 'strong':
 				void vscode.window
 					.showErrorMessage(
-						`AI Footprint: ${ctx.linesAdded} lines added at once${tail}. Review this carefully before moving on.`,
+						message,
 						'I will review it',
 						`Snooze ${NUDGE.snoozeMinutes}m`,
 					)

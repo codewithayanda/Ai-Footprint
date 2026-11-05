@@ -34,6 +34,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   They were wiped from storage and then written straight back. They are now reset in
   memory too.
 
+- **The typing-speed baseline was recalculated and saved on every keystroke** once its
+  200-sample window filled. It now updates every 50 intervals, moves 30% toward the new
+  window instead of replacing the stored baseline, and skips windows that are already
+  flagged as fast so a burst can't drag the baseline toward itself.
+- **A held-down key counted as suspiciously fast typing.** Intervals under 35 ms
+  (key auto-repeat) are now ignored.
+- **The fast-typing nudge said "1 lines added at once".** It now says code is arriving
+  faster than you usually type; the line count is kept for real large insertions.
+
 ### Changed
 - **Stats are no longer rewritten on every edit.** Saving to VS Code storage is now
   limited to once every 5 seconds, and the status bar and dashboard update in batches
