@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CadenceTracker } from './detectors/cadenceTracker';
 import { PasteDetector, countLines, countNewlines } from './detectors/pasteDetector';
+import { isSyncedWithDisk } from './detectors/externalChange';
 import { NudgeEngine } from './nudge/nudgeEngine';
 import { StatsService } from './services/statsService';
 import { DashboardPanel } from './ui/dashboardPanel';
@@ -57,6 +58,20 @@ function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): voi
 	// We don't care about settings.json, output channels, etc.
 	if (event.document.uri.scheme !== 'file' && event.document.uri.scheme !== 'untitled') {return;}
 
+	if (event.reason === vscode.TextDocumentChangeReason.Undo || event.reason === vscode.TextDocumentChangeReason.Redo) {return;}
+
+	const hasPasteSizedChange = event.contentChanges.some(c => countLines(c.text) >= pasteThreshold);
+	if (!hasPasteSizedChange) {
+		processChanges(event, deps, pasteThreshold);
+		return;
+	}
+
+	void isSyncedWithDisk(event.document).then(synced => {
+		if (!synced) {processChanges(event, deps, pasteThreshold);}
+	});
+}
+
+function processChanges(event: vscode.TextDocumentChangeEvent, deps: Deps, pasteThreshold: number): void {
 	for (const change of event.contentChanges) {
 		const text = change.text;
 		const linesAdded = countLines(text);
