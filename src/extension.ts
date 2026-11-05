@@ -6,6 +6,7 @@ import { NudgeEngine } from './nudge/nudgeEngine';
 import { StatsService, SnapshotEvent } from './services/statsService';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { getSettings, onSettingsChanged } from './config/settings';
+import { ExclusionFilter } from './config/exclusions';
 import { STORAGE_KEYS } from './constants';
 
 let activeStats: StatsService | undefined;
@@ -22,6 +23,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 	const cadence = new CadenceTracker(context);
 	const nudges = new NudgeEngine(context, stats);
 	const paste = new PasteDetector(() => getSettings().clipboardAware);
+	const exclusions = new ExclusionFilter(getSettings);
 
 	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	statusBar.command = 'ai-footprint.showDashboard';
@@ -35,6 +37,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 		stats.onChanged(() => updateStatusBar(statusBar, stats, getSettings().showStatusBar)),
 		registerCommands(context, stats, nudges, cadence),
 		onSettingsChanged(s => {
+			exclusions.reset();
 			updateStatusBar(statusBar, stats, s.showStatusBar);
 			vscode.window.setStatusBarMessage(
 				s.enabled
@@ -43,7 +46,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 				3_000,
 			);
 		}),
-		vscode.workspace.onDidChangeTextDocument(e => handleDocChange(e, { stats, cadence, nudges, paste })),
+		vscode.workspace.onDidChangeTextDocument(e => handleDocChange(e, { stats, cadence, nudges, paste, exclusions })),
 	);
 
 	maybeShowOnboarding(context);
@@ -62,6 +65,7 @@ interface Deps {
 	cadence: CadenceTracker;
 	nudges: NudgeEngine;
 	paste: PasteDetector;
+	exclusions: ExclusionFilter;
 }
 
 function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): void {
@@ -70,6 +74,8 @@ function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): voi
 
 	// We don't care about settings.json, output channels, etc.
 	if (event.document.uri.scheme !== 'file' && event.document.uri.scheme !== 'untitled') {return;}
+
+	if (deps.exclusions.isExcluded(event.document)) {return;}
 
 	if (event.reason === vscode.TextDocumentChangeReason.Undo || event.reason === vscode.TextDocumentChangeReason.Redo) {return;}
 

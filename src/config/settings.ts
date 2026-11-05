@@ -7,6 +7,8 @@ export interface AiFootprintSettings {
 	clipboardAware: boolean;
 	showStatusBar: boolean;
 	quietWhileDebugging: boolean;
+	excludeLanguages: string[];
+	excludeGlobs: string[];
 }
 
 export function getSettings(): AiFootprintSettings {
@@ -18,7 +20,15 @@ export function getSettings(): AiFootprintSettings {
 		clipboardAware: config.get<boolean>('clipboardAware') ?? true,
 		showStatusBar: config.get<boolean>('showStatusBar') ?? true,
 		quietWhileDebugging: config.get<boolean>('quietWhileDebugging') ?? true,
+		excludeLanguages: stringList(config.get('excludeLanguages')),
+		excludeGlobs: stringList(config.get('excludeGlobs')),
 	};
+}
+
+function stringList(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+		: [];
 }
 
 export function onSettingsChanged(callback: (s: AiFootprintSettings) => void): vscode.Disposable {
