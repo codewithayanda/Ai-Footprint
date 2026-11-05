@@ -8,8 +8,11 @@ import { DashboardPanel } from './ui/dashboardPanel';
 import { getSettings, onSettingsChanged } from './config/settings';
 import { STORAGE_KEYS } from './constants';
 
+let activeStats: StatsService | undefined;
+
 export function activate(context: vscode.ExtensionContext): void {
 	const stats = new StatsService(context);
+	activeStats = stats;
 	const cadence = new CadenceTracker(context);
 	const nudges = new NudgeEngine(context, stats);
 	const paste = new PasteDetector(() => getSettings().clipboardAware);
@@ -40,7 +43,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	maybeShowOnboarding(context);
 }
 
-export function deactivate(): void { /* disposables handle cleanup */ }
+export function deactivate(): Promise<void> | undefined {
+	return activeStats?.flush();
+}
 
 // --- Wiring helpers --------------------------------------------------------
 

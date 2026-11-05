@@ -28,6 +28,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   actually inserts. Days recorded by earlier versions keep their old, too-low
   reliance figure; there is no way to recompute them.
 
+### Changed
+- **Stats are no longer rewritten on every edit.** Saving to VS Code storage is now
+  limited to once every 5 seconds, and the status bar and dashboard update in batches
+  of 250 ms. Pending changes are saved when VS Code closes, so only a hard crash can
+  lose the last few seconds.
+
 ## [0.2.0] - 2026-06-30
 
 ### Changed
