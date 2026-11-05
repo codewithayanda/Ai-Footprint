@@ -11,8 +11,13 @@ export const CADENCE = {
 	// Longer edits are paste, snippet or autocomplete, not typing.
 	maxCharsPerKeystroke: 2,
 	maxIntervalMs: 5_000,
+	// Key auto-repeat fires about every 30 ms: a held key, not typing.
+	minIntervalMs: 35,
 	minSamplesForBaseline: 40,
 	windowSize: 200,
+	baselineUpdateEvery: 50,
+	// Share of the window median blended into the stored baseline per update.
+	baselineWeight: 0.3,
 	// Current median this many times faster than baseline counts as suspiciously fast.
 	fastMultiplier: 3,
 } as const;
