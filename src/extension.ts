@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const stats = new StatsService(context);
 	const cadence = new CadenceTracker(context);
 	const nudges = new NudgeEngine(context, stats);
-	const paste = new PasteDetector(getSettings().clipboardAware);
+	const paste = new PasteDetector(() => getSettings().clipboardAware);
 
 	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	statusBar.command = 'ai-footprint.showDashboard';
@@ -86,6 +86,7 @@ function processChanges(event: vscode.TextDocumentChangeEvent, deps: Deps, paste
 			void deps.paste
 				.classify(text, event.document)
 				.then(signal => {
+					if (signal.clipboard === 'mismatch') {return;}
 					deps.stats.recordPaste(signal.lines);
 					deps.nudges.evaluate({
 						linesAdded: signal.lines,

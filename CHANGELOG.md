@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- **Large edits that never came from the clipboard were counted as pastes.** With
+  `clipboardAware` on, a paste-sized insertion that doesn't match the clipboard
+  (format on save, rename or refactor results, snippet expansion) is now ignored. If
+  the clipboard is unreadable or empty the insertion is still counted. Inline AI
+  completions don't pass through the clipboard either, so they are no longer counted
+  while this setting is on.
+- Changing `aiFootprint.clipboardAware` now takes effect immediately instead of
+  after a reload.
 - **Pulled or checked-out code was flagged as pasted.** When VS Code reloads an open
   file from disk (`git pull`, `git switch`, rebase, `git stash pop`), the buffer now
   matches the file on disk, and a paste-sized change that does is ignored. Edits you
