@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="{{csp}}">
+<title>AI Footprint</title>
+<link rel="stylesheet" href="{{cssUri}}">
+</head>
+<body>
+<header>
+	<h1>AI Footprint</h1>
+	<p class="subtitle">Helping you stay in control of your code</p>
+</header>
+
+<section class="top-row">
+	<div class="score-card" id="scoreCard">
+		<div class="score-label">Today's Score</div>
+		<div class="score-value" id="score" data-value="0">…</div>
+	</div>
+	<div class="message-card">
+		<div class="message-headline" id="message">Loading…</div>
+		<div class="delta-row" id="deltaRow"></div>
+	</div>
+</section>
+
+<section class="chart-card">
+	<div class="chart-header">
+		<span class="chart-title">Last 14 days</span>
+		<span class="chart-hint">Click any day for detail</span>
+	</div>
+	<div class="chart" id="chart"></div>
+	<div class="chart-labels" id="chartLabels"></div>
+</section>
+
+<section class="detail-card">
+	<div class="detail-header">
+		<span class="detail-date" id="detailDate">…</span>
+		<span class="detail-score" id="detailScore"></span>
+	</div>
+	<div class="detail-stats" id="detailStats"></div>
+	<div class="hourly-title">When pastes happened</div>
+	<div id="hourlyWrap">
+		<div class="hourly" id="hourly"></div>
+		<div class="hourly-axis"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>23:59</span></div>
+	</div>
+</section>
+
+<section class="streak-row">
+	<div class="streak-card"><span class="l">Current streak</span><span class="v" id="streakCurrent" data-value="0">0</span></div>
+	<div class="streak-card"><span class="l">Best streak</span><span class="v" id="streakBest" data-value="0">0</span></div>
+</section>
+
+<p class="footer">AI Footprint · all data stays on this machine</p>
+
+<script nonce="{{nonce}}" src="{{jsUri}}"></script>
+</body>
+</html>
