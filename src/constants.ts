@@ -34,6 +34,8 @@ export const PERSISTENCE = {
 	writeIntervalMs: 5_000,
 	// Edits within this window collapse into one UI update.
 	emitDelayMs: 250,
+	// How often to check whether another window saved new stats.
+	pullIntervalMs: 10_000,
 } as const;
 
 export const NUDGE = {
