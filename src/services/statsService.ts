@@ -197,26 +197,7 @@ export class StatsService implements vscode.Disposable {
 	}
 
 	private advanceStreakIfNeeded(): void {
-		const todayKey = isoDate(new Date());
-		if (this.streak.lastEvaluated === todayKey) {return;}
-
-		const startFrom = this.streak.lastEvaluated
-			? addDays(parseIso(this.streak.lastEvaluated), 1)
-			: addDays(new Date(), -1); // first run: yesterday only
-
-		const yesterday = addDays(new Date(), -1);
-		for (let d = startFrom; d <= yesterday; d = addDays(d, 1)) {
-			const rec = this.days.get(isoDate(d));
-			const clean = !!rec && rec.score >= SCORING.cleanDayThreshold;
-			if (clean) {
-				this.streak.current += 1;
-				if (this.streak.current > this.streak.best) {this.streak.best = this.streak.current;}
-			} else if (rec) {
-				this.streak.current = 0;
-			}
-			// No record: streak unchanged.
-		}
-		this.streak.lastEvaluated = todayKey;
+		this.streak = rollStreak(this.streak, this.days, new Date());
 	}
 
 	private scheduleMidnightRollover(): void {
@@ -263,6 +244,32 @@ export function addDays(d: Date, n: number): Date {
 
 export function daysAgo(n: number): Date {
 	return addDays(new Date(), -n);
+}
+
+/** Folds every finished day since `lastEvaluated` into the streak; days without activity leave it unchanged. */
+export function rollStreak(
+	streak: StreakRecord,
+	days: ReadonlyMap<string, DayRecord>,
+	today: Date,
+): StreakRecord {
+	const todayKey = isoDate(today);
+	if (streak.lastEvaluated === todayKey) {return streak;}
+
+	const yesterday = addDays(today, -1);
+	const startFrom = streak.lastEvaluated ? addDays(parseIso(streak.lastEvaluated), 1) : yesterday;
+	const next = { ...streak, lastEvaluated: todayKey };
+
+	for (let d = startFrom; d <= yesterday; d = addDays(d, 1)) {
+		const rec = days.get(isoDate(d));
+		if (!rec || rec.totalLinesAdded === 0) {continue;}
+		if (rec.score >= SCORING.cleanDayThreshold) {
+			next.current += 1;
+			next.best = Math.max(next.best, next.current);
+		} else {
+			next.current = 0;
+		}
+	}
+	return next;
 }
 
 export function emptyDay(date: string): DayRecord {

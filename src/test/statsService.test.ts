@@ -1,22 +1,10 @@
 import * as assert from 'assert';
-import type * as vscode from 'vscode';
 import { StatsService } from '../services/statsService';
 import { STORAGE_KEYS } from '../constants';
+import { fakeContext } from './fakeContext';
 
 const FAST = { writeIntervalMs: 40, emitDelayMs: 10 };
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
-function fakeContext(): { context: vscode.ExtensionContext; writes: string[]; store: Map<string, unknown> } {
-	const store = new Map<string, unknown>();
-	const writes: string[] = [];
-	const context = {
-		globalState: {
-			get: (key: string) => store.get(key),
-			update: async (key: string, value: unknown) => { writes.push(key); store.set(key, value); },
-		},
-	} as unknown as vscode.ExtensionContext;
-	return { context, writes, store };
-}
 
 suite('StatsService persistence', () => {
 	test('a burst of edits causes no writes until the interval, then exactly one write pair', async () => {

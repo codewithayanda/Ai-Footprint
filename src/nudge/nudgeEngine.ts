@@ -45,6 +45,16 @@ export class NudgeEngine implements vscode.Disposable {
 		this.persist();
 	}
 
+	async clear(): Promise<void> {
+		this.history = [];
+		this.lastNudgeAt = 0;
+		this.snoozeUntil = 0;
+		await Promise.all([
+			this.context.globalState.update(STORAGE_KEYS.nudgeHistory, undefined),
+			this.context.globalState.update(STORAGE_KEYS.snoozeUntil, undefined),
+		]);
+	}
+
 	evaluate(ctx: NudgeContext): void {
 		const { enabled, cooldownMinutes, quietWhileDebugging } = getSettings();
 		if (!enabled) {return;}

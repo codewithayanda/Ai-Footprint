@@ -27,7 +27,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		nudges,
 		statusBar,
 		stats.onChanged(() => updateStatusBar(statusBar, stats, getSettings().showStatusBar)),
-		registerCommands(context, stats, nudges),
+		registerCommands(context, stats, nudges, cadence),
 		onSettingsChanged(s => {
 			updateStatusBar(statusBar, stats, s.showStatusBar);
 			vscode.window.setStatusBarMessage(
@@ -133,6 +133,7 @@ function registerCommands(
 	context: vscode.ExtensionContext,
 	stats: StatsService,
 	nudges: NudgeEngine,
+	cadence: CadenceTracker,
 ): vscode.Disposable {
 	const subs = vscode.Disposable.from(
 		vscode.commands.registerCommand('ai-footprint.showDashboard', () => {
@@ -164,10 +165,7 @@ function registerCommands(
 				'Clear',
 			);
 			if (choice !== 'Clear') {return;}
-			await stats.clear();
-			await context.globalState.update(STORAGE_KEYS.cadenceBaselines, undefined);
-			await context.globalState.update(STORAGE_KEYS.nudgeHistory, undefined);
-			await context.globalState.update(STORAGE_KEYS.snoozeUntil, undefined);
+			await Promise.all([stats.clear(), nudges.clear(), cadence.clear()]);
 			void vscode.window.showInformationMessage('AI Footprint: data cleared.');
 		}),
 	);
