@@ -31,6 +31,14 @@ export class CadenceTracker {
 		this.baselines = context.globalState.get<PersistedBaselines>(STORAGE_KEYS.cadenceBaselines) ?? {};
 	}
 
+	async clear(): Promise<void> {
+		this.intervalsByLang.clear();
+		this.lastKeystrokeByLang.clear();
+		this.baselines = {};
+		this.dirty = false;
+		await this.context.globalState.update(STORAGE_KEYS.cadenceBaselines, undefined);
+	}
+
 	track(languageId: string, charsAdded: number, charsRemoved: number): void {
 		// Non-keystroke edits never feed the baseline. Backspaces (removed > 0,
 		// added 0) are evidence of human editing but don't have a meaningful

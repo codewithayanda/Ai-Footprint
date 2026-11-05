@@ -27,6 +27,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `pasted lines ÷ total lines added`. Typing now counts only the line breaks it
   actually inserts. Days recorded by earlier versions keep their old, too-low
   reliance figure; there is no way to recompute them.
+- **The streak grew on days you didn't code.** Opening VS Code created an empty record
+  for the day, and an empty record counted as clean. Only days with real activity can
+  extend or break the streak now. Streaks already inflated by this are not corrected.
+- **"Clear All Data" left nudge history, snooze and typing baselines alive in memory.**
+  They were wiped from storage and then written straight back. They are now reset in
+  memory too.
 
 ### Changed
 - **Stats are no longer rewritten on every edit.** Saving to VS Code storage is now
