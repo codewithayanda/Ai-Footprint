@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { median, medianAbsoluteDeviation } from '../detectors/cadenceTracker';
 import { countLines, countNewlines } from '../detectors/pasteDetector';
+import { sameContent } from '../detectors/externalChange';
 import { isoDate, parseIso, addDays, daysAgo, emptyDay } from '../services/statsService';
 import { SCORING } from '../constants';
 
@@ -37,6 +38,15 @@ suite('typed line counting', () => {
 		assert.strictEqual(countLines('a'), 1);
 		assert.strictEqual(countNewlines('a'), 0);
 	});
+});
+
+suite('disk content comparison', () => {
+	test('identical text matches', () => assert.ok(sameContent('a\nb', 'a\nb')));
+	test('CRLF on disk matches LF buffer', () => assert.ok(sameContent('a\nb\n', 'a\r\nb\r\n')));
+	test('leading BOM on disk is ignored', () => assert.ok(sameContent('a', '﻿a')));
+	test('different text does not match', () => assert.ok(!sameContent('a\nb', 'a\nc')));
+	test('trailing newline difference does not match', () => assert.ok(!sameContent('a\n', 'a')));
+	test('empty strings match', () => assert.ok(sameContent('', '')));
 });
 
 suite('date helpers', () => {

@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- **Pulled or checked-out code was flagged as pasted.** When VS Code reloads an open
+  file from disk (`git pull`, `git switch`, rebase, `git stash pop`), the buffer now
+  matches the file on disk, and a paste-sized change that does is ignored. Edits you
+  make in the editor never match disk, so real pastes are still counted. Small
+  reloaded hunks below the paste threshold are still counted as typed lines.
+- **Undo and Redo were counted as pastes.** Undoing a large deletion re-inserts the
+  text; those edits are now ignored.
 - **AI Reliance % was understated.** Every typed character was recorded as a "typed
   line" (and Enter with auto-indent as two), inflating the denominator of
   `pasted lines ÷ total lines added`. Typing now counts only the line breaks it
