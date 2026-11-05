@@ -14,6 +14,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   apply immediately.
 
 ### Fixed
+- **Moving your own code was counted as a paste.** The old "own code" check was fed only
+  by single-keystroke edits (and ignored anything under 16 characters), so it never
+  matched, and even when it did it only muted the nudge while still lowering the score.
+  A paste is now ignored completely when its text is already in another open file, or
+  already elsewhere in the same file (whitespace and indentation are ignored, and very
+  short text never matches). Text pasted from a browser, chat or terminal is still counted.
 - **Large edits that never came from the clipboard were counted as pastes.** With
   `clipboardAware` on, a paste-sized insertion that doesn't match the clipboard
   (format on save, rename or refactor results, snippet expansion) is now ignored. If

@@ -101,33 +101,28 @@ function processChanges(event: vscode.TextDocumentChangeEvent, deps: Deps, paste
 		deps.cadence.track(languageId, charsAdded, charsRemoved);
 
 		if (linesAdded >= pasteThreshold) {
-			// Defer to PasteDetector for full classification (clipboard match etc.)
 			void deps.paste
 				.classify(text, event.document)
 				.then(signal => {
-					if (signal.clipboard === 'mismatch') {return;}
+					if (signal.clipboard === 'mismatch' || signal.alreadyInWorkspace) {return;}
 					deps.stats.recordPaste(signal.lines);
 					deps.nudges.evaluate({
 						linesAdded: signal.lines,
 						isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
 						languageId: signal.languageId,
-						likelyOwnCode: signal.likelyOwnCode,
+						likelyOwnCode: false,
 					});
 				});
-		} else {
-			deps.paste.noteLocalEdit(text);
+		} else if (charsAdded > 0) {
+			const typedLines = countNewlines(text);
+			if (typedLines > 0) {deps.stats.recordTyping(typedLines);}
 
-			if (charsAdded > 0) {
-				const typedLines = countNewlines(text);
-				if (typedLines > 0) {deps.stats.recordTyping(typedLines);}
-
-				deps.nudges.evaluate({
-					linesAdded: typedLines,
-					isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
-					languageId,
-					likelyOwnCode: true,
-				});
-			}
+			deps.nudges.evaluate({
+				linesAdded: typedLines,
+				isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
+				languageId,
+				likelyOwnCode: true,
+			});
 		}
 	}
 }
