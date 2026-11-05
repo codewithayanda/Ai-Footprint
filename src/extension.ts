@@ -80,17 +80,12 @@ function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): voi
 					});
 				});
 		} else {
-			// Human-paced edit: feed the "own code" cache first.
 			deps.paste.noteLocalEdit(text);
 
 			if (charsAdded > 0) {
-				// Count real line breaks, not characters: `countLines` reports 1 for
-				// any non-empty text, which made every keystroke look like a typed line
-				// and drove the AI Reliance % far too low.
 				const typedLines = countNewlines(text);
 				if (typedLines > 0) {deps.stats.recordTyping(typedLines);}
 
-				// Still let the nudge engine consider fast-typing alerts.
 				deps.nudges.evaluate({
 					linesAdded: typedLines,
 					isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),

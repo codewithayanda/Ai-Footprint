@@ -61,16 +61,7 @@ export class PasteDetector {
 	}
 }
 
-/**
- * Number of lines a small, human-paced edit actually added to the document,
- * i.e. the number of line breaks it inserted.
- *
- * Unlike `countLines` (which answers "how many lines of text is this?" and is
- * therefore always >= 1 for non-empty text), a single typed character adds 0
- * lines and pressing Enter adds 1, however much auto-indent whitespace follows.
- * Use this for "how much did the user type" bookkeeping, and `countLines` for
- * classifying a block of text as a paste.
- */
+/** Line breaks an edit inserted: 0 for a typed char, 1 for Enter (unlike `countLines`, which is >= 1). */
 export function countNewlines(text: string): number {
 	if (!text) {return 0;}
 	let count = 0;
