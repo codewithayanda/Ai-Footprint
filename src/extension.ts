@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { CadenceTracker } from './detectors/cadenceTracker';
-import { PasteDetector, countLines } from './detectors/pasteDetector';
+import { PasteDetector, countLines, countNewlines } from './detectors/pasteDetector';
 import { NudgeEngine } from './nudge/nudgeEngine';
 import { StatsService } from './services/statsService';
 import { DashboardPanel } from './ui/dashboardPanel';
@@ -79,19 +79,25 @@ function handleDocChange(event: vscode.TextDocumentChangeEvent, deps: Deps): voi
 						likelyOwnCode: signal.likelyOwnCode,
 					});
 				});
-		} else if (linesAdded > 0) {
-			// Human-paced typing: feed the "own code" cache and track total lines.
-			deps.paste.noteLocalEdit(text);
-			deps.stats.recordTyping(linesAdded);
-			// Still let the nudge engine consider fast-typing alerts.
-			deps.nudges.evaluate({
-				linesAdded,
-				isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
-				languageId,
-				likelyOwnCode: true,
-			});
 		} else {
+			// Human-paced edit: feed the "own code" cache first.
 			deps.paste.noteLocalEdit(text);
+
+			if (charsAdded > 0) {
+				// Count real line breaks, not characters: `countLines` reports 1 for
+				// any non-empty text, which made every keystroke look like a typed line
+				// and drove the AI Reliance % far too low.
+				const typedLines = countNewlines(text);
+				if (typedLines > 0) {deps.stats.recordTyping(typedLines);}
+
+				// Still let the nudge engine consider fast-typing alerts.
+				deps.nudges.evaluate({
+					linesAdded: typedLines,
+					isFastTyping: deps.cadence.isSuspiciouslyFast(languageId),
+					languageId,
+					likelyOwnCode: true,
+				});
+			}
 		}
 	}
 }

@@ -4,6 +4,15 @@ All notable changes to the **AI Footprint** extension are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **AI Reliance % was understated.** Every typed character was recorded as a "typed
+  line" (and Enter with auto-indent as two), inflating the denominator of
+  `pasted lines ÷ total lines added`. Typing now counts only the line breaks it
+  actually inserts. Days recorded by earlier versions keep their old, too-low
+  reliance figure; there is no way to recompute them.
+
 ## [0.2.0] - 2026-06-30
 
 ### Changed
