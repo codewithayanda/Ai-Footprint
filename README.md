@@ -122,6 +122,8 @@ File → Preferences → Settings → search "AI Footprint"
 | `aiFootprint.clipboardAware` | true | Cross-check insertions against the OS clipboard for more accurate paste detection |
 | `aiFootprint.showStatusBar` | true | Show the live score in the status bar |
 | `aiFootprint.quietWhileDebugging` | true | Suppress nudges while a debug session is active |
+| `aiFootprint.excludeGlobs` | lockfiles, `*.min.js`, `*.map`, `dist`, `out`, `node_modules`, `.git` | Glob patterns for files to ignore completely |
+| `aiFootprint.excludeLanguages` | none | Language IDs to ignore completely, for example `markdown` |
 
 ---
 

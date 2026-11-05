@@ -117,4 +117,50 @@ suite('end to end (real editor events through the real extension)', function () 
 			fs.rmSync(file, { force: true });
 		}
 	});
+
+	async function pasteIntoFile(fileName: string): Promise<void> {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'af-e2e-'));
+		const file = path.join(dir, fileName);
+		fs.writeFileSync(file, 'one line\n');
+		try {
+			await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
+			await vscode.env.clipboard.writeText(block(10));
+			await paste();
+			await sleep(1_000);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	}
+
+	test('a paste into an excluded file (a lockfile) is ignored', async () => {
+		await pasteIntoFile('package-lock.json');
+		assert.strictEqual(api.snapshot().today.pastes, 0, show());
+	});
+
+	test('the same paste into a normal file is counted', async () => {
+		await pasteIntoFile('notes.ts');
+		assert.strictEqual(api.snapshot().today.pastes, 1, show());
+	});
+
+	test('excluding a language takes effect immediately, and removing it brings detection back', async () => {
+		const config = vscode.workspace.getConfiguration('aiFootprint');
+		try {
+			await config.update('excludeLanguages', ['typescript'], vscode.ConfigurationTarget.Global);
+			await sleep(300);
+			await openUntitled();
+			await vscode.env.clipboard.writeText(block(10));
+			await paste();
+			await sleep(1_000);
+			assert.strictEqual(api.snapshot().today.pastes, 0, `typescript is excluded: ${show()}`);
+
+			await config.update('excludeLanguages', undefined, vscode.ConfigurationTarget.Global);
+			await sleep(300);
+			await vscode.env.clipboard.writeText(block(10, 'w'));
+			await paste();
+			assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `detection must come back: ${show()}`);
+		} finally {
+			await config.update('excludeLanguages', undefined, vscode.ConfigurationTarget.Global);
+		}
+	});
 });

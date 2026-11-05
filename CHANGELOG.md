@@ -6,6 +6,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **Ignore files and languages.** Two new settings stop AI Footprint counting anything in
+  matching files: `aiFootprint.excludeGlobs` (by default lockfiles, minified and
+  generated files, `dist`, `out`, `node_modules` and Git's own files) and
+  `aiFootprint.excludeLanguages` (empty by default; for example `markdown`). Changes
+  apply immediately.
+
 ### Fixed
 - **Large edits that never came from the clipboard were counted as pastes.** With
   `clipboardAware` on, a paste-sized insertion that doesn't match the clipboard

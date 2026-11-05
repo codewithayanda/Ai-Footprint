@@ -84,6 +84,28 @@
           "type": "boolean",
           "default": true,
           "description": "Suppress nudges while a debug session is active."
+        },
+        "aiFootprint.excludeLanguages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Language IDs to ignore completely, for example markdown or plaintext."
+        },
+        "aiFootprint.excludeGlobs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "**/package-lock.json",
+            "**/yarn.lock",
+            "**/pnpm-lock.yaml",
+            "**/*.min.js",
+            "**/*.map",
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/out/**",
+            "**/.git/**"
+          ],
+          "description": "Glob patterns for files to ignore completely. By default: lockfiles, minified and generated files, build output and Git's own files."
         }
       }
     }
