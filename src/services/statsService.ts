@@ -1,24 +1,23 @@
 import * as vscode from 'vscode';
-import { STORAGE_KEYS, SCORING } from '../constants';
+import { STORAGE_KEYS, SCORING, PERSISTENCE } from '../constants';
 
 export interface DayRecord {
-	date: string;            // ISO yyyy-mm-dd in local time
-	score: number;           // 0..100
+	date: string;            // local yyyy-mm-dd
+	score: number;
 	pastes: number;
 	nudges: number;
-	pastedLines: number;     // total lines that arrived via paste-class events
-	totalLinesAdded: number; // every line added today (typed + pasted)
-	biggestPasteLines: number; // max lines in a single paste today
-	hourlyPastes: number[];  // length 24; hourlyPastes[h] = pastes during local hour h
+	pastedLines: number;
+	totalLinesAdded: number; // typed + pasted
+	biggestPasteLines: number;
+	hourlyPastes: number[];  // 24 buckets, index = local hour
 }
 
 export interface StreakRecord {
-	current: number;       // consecutive clean days up to and including yesterday
+	current: number;       // consecutive clean days up to yesterday
 	best: number;
-	lastEvaluated: string; // ISO date we last rolled the streak forward
+	lastEvaluated: string;
 }
 
-/** Aggregate over a window of past days. Null when no day in the window had activity. */
 export interface DayAverage {
 	score: number;
 	pastes: number;
@@ -37,16 +36,12 @@ export interface SnapshotEvent {
 	yesterday?: DayRecord;
 	streak: StreakRecord;
 	last7: DayRecord[];
-	reliance: number;        // today's reliance %, derived from today's record
-	avg7: DayAverage | null; // average over the 6 days BEFORE today, active days only
+	reliance: number;
+	avg7: DayAverage | null; // prior 6 days, active days only
 	deltas: SnapshotDeltas;
 }
 
-/**
- * Owns all session-spanning stats. Persists per-day records keyed by local date,
- * handles rollover at midnight, computes the clean-day streak, and emits a single
- * event consumers (dashboard, status bar) can subscribe to.
- */
+/** Owns per-day stats: persistence, midnight rollover, streak and the change event. */
 export class StatsService implements vscode.Disposable {
 	private readonly emitter = new vscode.EventEmitter<SnapshotEvent>();
 	readonly onChanged = this.emitter.event;
@@ -54,11 +49,17 @@ export class StatsService implements vscode.Disposable {
 	private days = new Map<string, DayRecord>();
 	private streak: StreakRecord;
 	private rolloverTimer?: NodeJS.Timeout;
+	private emitTimer?: NodeJS.Timeout;
+	private writeTimer?: NodeJS.Timeout;
+	private unsaved = false;
 
-	constructor(private readonly context: vscode.ExtensionContext) {
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly timing: { writeIntervalMs: number; emitDelayMs: number } = PERSISTENCE,
+	) {
 		const saved = context.globalState.get<DayRecord[]>(STORAGE_KEYS.dailyStats) ?? [];
 		for (const d of saved) {
-			// Backfill fields added after v0.1.0 so older records load cleanly.
+			// Backfill fields added after v0.1.0.
 			if (!Array.isArray(d.hourlyPastes) || d.hourlyPastes.length !== 24) {
 				d.hourlyPastes = new Array(24).fill(0);
 			}
@@ -76,13 +77,27 @@ export class StatsService implements vscode.Disposable {
 	}
 
 	dispose(): void {
+		void this.flush();
+		if (this.emitTimer) {clearTimeout(this.emitTimer);}
 		this.emitter.dispose();
 		if (this.rolloverTimer) {clearTimeout(this.rolloverTimer);}
 	}
 
-	// --- Mutations -----------------------------------------------------------
+	/** Writes pending changes now; awaited on deactivate. */
+	async flush(): Promise<void> {
+		if (this.writeTimer) {
+			clearTimeout(this.writeTimer);
+			this.writeTimer = undefined;
+		}
+		if (!this.unsaved) {return;}
+		this.unsaved = false;
+		await Promise.all([
+			this.context.globalState.update(STORAGE_KEYS.dailyStats, [...this.days.values()]),
+			this.context.globalState.update(STORAGE_KEYS.streak, this.streak),
+		]);
+	}
 
-	/** Record a paste of `lines` lines. Caps deduction to avoid score collapse from a single huge paste. */
+	/** The deduction is capped so one huge paste can't zero the day. */
 	recordPaste(lines: number): void {
 		const today = this.ensureTodayRecord();
 		const deduction = Math.min(
@@ -95,35 +110,30 @@ export class StatsService implements vscode.Disposable {
 		today.score = Math.max(0, today.score - deduction);
 		today.biggestPasteLines = Math.max(today.biggestPasteLines, lines);
 		today.hourlyPastes[new Date().getHours()] += 1;
-		this.persistAndEmit();
+		this.markChanged();
 	}
 
-	/** Record lines added through normal typing (no paste). */
 	recordTyping(lines: number): void {
 		if (lines <= 0) {return;}
 		const today = this.ensureTodayRecord();
 		today.totalLinesAdded += lines;
-		// No score change for typing; just emit so the dashboard's reliance % stays live.
-		this.persistAndEmit();
+		this.markChanged();
 	}
 
 	recordNudge(): void {
 		const today = this.ensureTodayRecord();
 		today.nudges += 1;
-		this.persistAndEmit();
+		this.markChanged();
 	}
 
-	/** Wipe all persisted state. Used by the "Clear Data" command. */
 	async clear(): Promise<void> {
 		this.days.clear();
 		this.streak = { current: 0, best: 0, lastEvaluated: '' };
-		await this.context.globalState.update(STORAGE_KEYS.dailyStats, undefined);
-		await this.context.globalState.update(STORAGE_KEYS.streak, undefined);
 		this.ensureTodayRecord();
-		this.persistAndEmit();
+		this.unsaved = true;
+		await this.flush();
+		this.emitNow();
 	}
-
-	// --- Queries -------------------------------------------------------------
 
 	snapshot(): SnapshotEvent {
 		const today = this.ensureTodayRecord();
@@ -133,9 +143,7 @@ export class StatsService implements vscode.Disposable {
 
 		const reliance = computeReliance(today);
 
-		// Average over the 6 days BEFORE today, counting only days with real activity.
-		// Including today would make today partially define its own baseline; including
-		// zero-activity days would inflate the average upward and make today look worse.
+		// Prior 6 active days only, so today and idle days don't skew the baseline.
 		const priorSix = last7.slice(0, 6).filter(d => d.totalLinesAdded > 0);
 		const avg7: DayAverage | null = priorSix.length > 0
 			? {
@@ -163,7 +171,7 @@ export class StatsService implements vscode.Disposable {
 		};
 	}
 
-	/** Last N days oldest-first, filling missing days with zeroed records. */
+	/** Oldest first; missing days are zeroed. */
 	lastNDays(n: number): DayRecord[] {
 		const out: DayRecord[] = [];
 		for (let i = n - 1; i >= 0; i--) {
@@ -173,15 +181,13 @@ export class StatsService implements vscode.Disposable {
 		return out;
 	}
 
-	// --- Internals -----------------------------------------------------------
-
 	private ensureTodayRecord(): DayRecord {
 		const key = isoDate(new Date());
 		let rec = this.days.get(key);
 		if (!rec) {
 			rec = emptyDay(key);
 			this.days.set(key, rec);
-			// Trim history to ~90 days.
+			// Keep ~90 days.
 			if (this.days.size > 90) {
 				const keys = [...this.days.keys()].sort();
 				for (const k of keys.slice(0, this.days.size - 90)) {this.days.delete(k);}
@@ -190,31 +196,25 @@ export class StatsService implements vscode.Disposable {
 		return rec;
 	}
 
-	/**
-	 * If the day has changed since we last evaluated, fold any completed days
-	 * into the streak. Pure function over `this.days` + `this.streak`.
-	 */
 	private advanceStreakIfNeeded(): void {
 		const todayKey = isoDate(new Date());
 		if (this.streak.lastEvaluated === todayKey) {return;}
 
-		// Walk forward from lastEvaluated + 1 up to yesterday.
 		const startFrom = this.streak.lastEvaluated
 			? addDays(parseIso(this.streak.lastEvaluated), 1)
-			: addDays(new Date(), -1); // first run: just consider yesterday
+			: addDays(new Date(), -1); // first run: yesterday only
 
 		const yesterday = addDays(new Date(), -1);
 		for (let d = startFrom; d <= yesterday; d = addDays(d, 1)) {
 			const rec = this.days.get(isoDate(d));
-			// A "clean day" requires we actually saw activity that day.
 			const clean = !!rec && rec.score >= SCORING.cleanDayThreshold;
 			if (clean) {
 				this.streak.current += 1;
 				if (this.streak.current > this.streak.best) {this.streak.best = this.streak.current;}
 			} else if (rec) {
-				this.streak.current = 0; // a tracked-but-not-clean day breaks the streak
+				this.streak.current = 0;
 			}
-			// If !rec (no activity that day), we leave the streak unchanged.
+			// No record: streak unchanged.
 		}
 		this.streak.lastEvaluated = todayKey;
 	}
@@ -225,19 +225,25 @@ export class StatsService implements vscode.Disposable {
 		this.rolloverTimer = setTimeout(() => {
 			this.ensureTodayRecord();
 			this.advanceStreakIfNeeded();
-			this.persistAndEmit();
+			this.markChanged();
 			this.scheduleMidnightRollover();
 		}, next.getTime() - now.getTime());
 	}
 
-	private persistAndEmit(): void {
-		void this.context.globalState.update(STORAGE_KEYS.dailyStats, [...this.days.values()]);
-		void this.context.globalState.update(STORAGE_KEYS.streak, this.streak);
+	private markChanged(): void {
+		this.unsaved = true;
+		this.writeTimer ??= setTimeout(() => { void this.flush(); }, this.timing.writeIntervalMs);
+		this.emitTimer ??= setTimeout(() => this.emitNow(), this.timing.emitDelayMs);
+	}
+
+	private emitNow(): void {
+		if (this.emitTimer) {
+			clearTimeout(this.emitTimer);
+			this.emitTimer = undefined;
+		}
 		this.emitter.fire(this.snapshot());
 	}
 }
-
-// --- Pure helpers (exported for tests) --------------------------------------
 
 export function isoDate(d: Date): string {
 	const y = d.getFullYear();
@@ -272,7 +278,7 @@ export function emptyDay(date: string): DayRecord {
 	};
 }
 
-/** Pure: fraction of lines added that day which arrived via paste. */
+/** Percent of the day's lines that arrived via paste. */
 export function computeReliance(d: DayRecord): number {
 	return d.totalLinesAdded > 0
 		? Math.min(100, Math.round((d.pastedLines / d.totalLinesAdded) * 100))
