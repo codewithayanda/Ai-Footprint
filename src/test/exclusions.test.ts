@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ExclusionFilter, ExclusionSettings } from '../config/exclusions';
+import { removeQuietly } from './cleanup';
 
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
 const defaultGlobs: string[] = manifest.contributes.configuration.properties['aiFootprint.excludeGlobs'].default;
@@ -21,7 +22,7 @@ suite('ExclusionFilter', function () {
 	const withDefaults = (): ExclusionFilter => new ExclusionFilter(() => ({ excludeLanguages: [], excludeGlobs: defaultGlobs }));
 
 	suiteSetup(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'af-excl-')); });
-	suiteTeardown(() => { fs.rmSync(root, { recursive: true, force: true }); });
+	suiteTeardown(() => { removeQuietly(root); });
 
 	for (const excluded of [
 		'package-lock.json',
