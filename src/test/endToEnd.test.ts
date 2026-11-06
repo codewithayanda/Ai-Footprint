@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ExtensionApi } from '../extension';
+import { removeQuietly } from './cleanup';
 
 // Every call gets text no earlier test used, so a lingering open document can't look like "already in the workspace".
 let blocks = 0;
@@ -119,7 +120,7 @@ suite('end to end (real editor events through the real extension)', function () 
 			assert.ok(await waitFor(() => api.snapshot().today.pastes === 1), `a real paste must count: ${show()}`);
 		} finally {
 			await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
-			fs.rmSync(file, { force: true });
+			removeQuietly(file);
 		}
 	});
 
@@ -134,7 +135,7 @@ suite('end to end (real editor events through the real extension)', function () 
 			await sleep(1_000);
 		} finally {
 			await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
-			fs.rmSync(dir, { recursive: true, force: true });
+			removeQuietly(dir);
 		}
 	}
 
@@ -176,7 +177,7 @@ suite('end to end (real editor events through the real extension)', function () 
 		try {
 			await run(file);
 		} finally {
-			fs.rmSync(dir, { recursive: true, force: true });
+			removeQuietly(dir);
 		}
 	}
 

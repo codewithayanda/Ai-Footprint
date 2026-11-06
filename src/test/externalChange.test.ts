@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { isSyncedWithDisk } from '../detectors/externalChange';
+import { removeQuietly } from './cleanup';
 
 suite('isSyncedWithDisk (real file, real VS Code)', () => {
 	test('true after an external write reloads the buffer, false after an editor edit', async function () {
@@ -38,7 +39,7 @@ suite('isSyncedWithDisk (real file, real VS Code)', () => {
 			assert.ok(!(await isSyncedWithDisk(doc)), 'an editor edit must not look like a reload');
 		} finally {
 			await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
-			fs.rmSync(file, { force: true });
+			removeQuietly(file);
 		}
 	});
 });
